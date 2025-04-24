@@ -1,1 +1,7 @@
+.git
 node_modules
+dist
+test
+*.log
+Dockerfile
+docker-compose*

@@ -3,20 +3,31 @@ kind: Config
 
 build:
   local:
-    push: false
+    push: false                # keep images local for Docker-Desktop K8s
   artifacts:
-  - image: auth-service            # must match Deployment .spec.template.image
-    context: services/auth
-    docker:
-      dockerfile: Dockerfile
-    sync:
-      manual:
-        - src: 'src/**/*.ts'
-          dest: .
+    # ---------- AUTH ----------
+    - image: auth-service
+      context: services/auth
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.ts"
+            dest: .
+    # ---------- PROFILE ----------
+    - image: profile-service           # must match profile.yaml .spec.template.image
+      context: services/profile
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.ts"
+            dest: .
+
 deploy:
   kubectl:
     manifests:
-      - infra/k8s/*.yaml
+      - infra/k8s/*.yaml               # picks up profile.yaml, profile-hpa.yaml, etc.
 
 profiles:
   - name: local

@@ -2,23 +2,26 @@
 FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
+# First copy package files and install dependencies
 COPY package.json package-lock.json ./
 RUN npm ci
-
-# copy source & compile TS → JS
+# Then copy source code
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build        # outputs to dist/
 
 # ---------- 2. Production ----------
 FROM node:20-alpine AS runtime
+# Install ts-node globally BEFORE switching to non-root user
+RUN npm install -g ts-node typescript
+
 # create non-root user
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /home/app
 
-# copy only prod deps & compiled code
+# copy deps, source & config
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY package.json ./
 
 ENV NODE_ENV=production \
@@ -31,4 +34,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD \
   wget -qO- http://localhost:${PORT}/healthz || exit 1
 
 USER app
-CMD ["node", "dist/index.js"]
+CMD ["npx", "ts-node", "src/index.ts"]

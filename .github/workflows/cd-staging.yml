@@ -1,0 +1,75 @@
+name: CD-Staging
+
+on:
+  push:
+    branches: [ staging ]          # every merge into staging
+
+env:
+  AWS_REGION: ${ vars.AWS_REGION }
+  ECR_REGISTRY: ${ vars.ECR_REGISTRY }
+
+jobs:
+  build-deploy:
+    name: Build & Deploy ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    environment: Staging          # optional reviewer gate
+    strategy:
+      matrix:
+        service: [ auth-service, learning-service, middleware-service ]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      # Build & push image
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build & push ${{ matrix.service }}
+        id: build
+        run: |
+          IMAGE="$ECR_REGISTRY/${{ matrix.service }}:${GITHUB_SHA::8}"
+          docker build -f services/${{ matrix.service }}/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy ${{ matrix.service }} to Staging
+        run: |
+          aws eks update-kubeconfig --name yap-backend-staging --region $AWS_REGION
+          kubectl set image deployment/${{ matrix.service }} \
+            ${{ matrix.service }}=${{ env.IMAGE }} --record
+          kubectl rollout status deployment/${{ matrix.service }}
+
+  smoke-tests:
+    name: Smoke Tests
+    needs: build-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health-check endpoints
+        run: |
+          curl -f http://auth-service.staging.svc.cluster.local/health
+          curl -f http://learning-service.staging.svc.cluster.local/health
+          curl -f http://middleware-service.staging.svc.cluster.local/health
+
+  promote:
+    name: Promote to Production
+    needs: smoke-tests
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR staging → production
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GH_PAT }}
+          commit-message: "Promote staging → production (${GITHUB_SHA::8})"
+          base: production
+          branch: staging
+          title: "Release ${GITHUB_SHA::8} to production"

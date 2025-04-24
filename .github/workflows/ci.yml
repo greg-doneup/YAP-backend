@@ -1,0 +1,52 @@
+name: CI
+concurrency: ci-${{ github.ref }}
+
+on:
+  pull_request:
+    branches: [ staging ]
+  push:
+    branches: [ '**' ]
+
+# ─────────────────────────────────────────────
+# Current service list (add more later)
+env:
+  SERVICE_PATHS: |
+    services/auth-service
+# ─────────────────────────────────────────────
+
+jobs:
+  lint-typecheck-test:
+    strategy:
+      matrix:
+        service:
+          - services/auth-service        # only existing service
+
+    runs-on: ubuntu-latest
+    name: CI for ${{ matrix.service }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Node setup with per-service cache
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+      # Install deps, lint, type-check, unit tests
+      - name: Install dependencies
+        run: npm ci --prefix ${{ matrix.service }}
+
+      - name: Lint
+        run: npm run lint --prefix ${{ matrix.service }}
+
+      - name: Type-check
+        run: npm run tsc -- --noEmit --prefix ${{ matrix.service }}
+
+      - name: Unit tests
+        run: npm run test:unit -- --ci --prefix ${{ matrix.service }}
+
+      # Security audit
+      - name: npm audit
+        run: npm audit --audit-level=high --prefix ${{ matrix.service }}

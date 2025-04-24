@@ -1,0 +1,52 @@
+name: CD-Production
+
+on:
+  push:
+    branches: [ production ]      # merge of promotion PR
+
+env:
+  AWS_REGION: ${ vars.AWS_REGION }
+  ECR_REGISTRY: ${ vars.ECR_REGISTRY }
+
+jobs:
+  deploy:
+    name: Deploy ${{ matrix.service }} to Prod
+    runs-on: ubuntu-latest
+    environment: Production      # human approval gate
+    strategy:
+      matrix:
+        service: [ auth-service, learning-service, middleware-service ]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure kubectl
+        run: aws eks update-kubeconfig --name yap-backend-prod --region $AWS_REGION
+
+      - name: Rollout ${{ matrix.service }}
+        run: |
+          IMAGE="$ECR_REGISTRY/${{ matrix.service }}:${GITHUB_SHA::8}"
+          kubectl set image deployment/${{ matrix.service }} \
+            ${{ matrix.service }}=$IMAGE --record
+          kubectl rollout status deployment/${{ matrix.service }}
+
+  fast-forward-master:
+    name: Fast-forward master
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v3
+      - name: Sync master with production SHA
+        run: |
+          git config --global user.email "bot@users.noreply.github.com"
+          git config --global user.name  "github-actions[bot]"
+          git fetch origin master
+          git switch master
+          git merge --ff-only $GITHUB_SHA
+          git push origin master

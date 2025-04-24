@@ -1,0 +1,29 @@
+apiVersion: skaffold/v2beta29
+kind: Config
+
+build:
+  local:
+    push: false
+  artifacts:
+  - image: auth-service            # must match Deployment .spec.template.image
+    context: services/auth
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+        - src: 'src/**/*.ts'
+          dest: .
+deploy:
+  kubectl:
+    manifests:
+      - infra/k8s/*.yaml
+
+profiles:
+  - name: local
+    build:
+      local:
+        push: false
+    deploy:
+      kubectl:
+        manifests:
+          - infra/k8s/*.yaml

@@ -3,11 +3,11 @@ import jwt from 'jsonwebtoken';
 
 export function requireAuth(secret: string) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const hdr = req.headers.authorization;
-    if (!hdr?.startsWith('Bearer ')) return res.sendStatus(401);
+    const h = req.headers.authorization;
+    if (!h?.startsWith('Bearer ')) return res.sendStatus(401);
 
     try {
-      const token = hdr.substring(7);
+      const token = h.substring(7);
       (req as any).user = jwt.verify(token, secret);
       next();
     } catch {

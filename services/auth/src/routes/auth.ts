@@ -1,27 +1,47 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { verifyWeb3AuthIdToken } from '../utils/web3auth';
+import { initEmail, verifyEmail, createEmbeddedWallet } from '../utils/dynamic';
 
+const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
 const router = Router();
-const APP_JWT_SECRET = process.env.APP_JWT_SECRET as string;
 
-router.post('/callback', async (req, res, next) => {
+/**
+ * POST /auth/login   { email }
+ * Returns { challengeId }
+ */
+router.post('/login', async (req, res, next) => {
   try {
-    const { idToken } = req.body;
-    if (!idToken) return res.status(400).json({ message: 'idToken required' });
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'email required' });
 
-    // 1. Validate Web3Auth token
-    const { sub: walletAddress } = await verifyWeb3AuthIdToken(idToken);
+    const { challengeId } = await initEmail(email);
+    res.json({ challengeId });
+  } catch (err) { next(err); }
+});
 
-    // 2. Mint app-side JWT
-    const appToken = jwt.sign({ walletAddress }, APP_JWT_SECRET, {
-      expiresIn: '7d',
-    });
+/**
+ * POST /auth/verify  { challengeId, otp }
+ * Returns { token, walletAddress }
+ */
+router.post('/verify', async (req, res, next) => {
+  try {
+    const { challengeId, otp } = req.body;
+    if (!challengeId || !otp)
+      return res.status(400).json({ message: 'challengeId and otp required' });
 
-    res.json({ token: appToken, walletAddress });
-  } catch (err) {
-    next(err);
-  }
+    // 1. Verify OTP with Dynamic
+    const { user } = await verifyEmail(challengeId, otp);
+
+    // 2. Create or fetch wallet
+    const { wallet } = await createEmbeddedWallet(user.id);
+
+    // 3. Issue app-specific JWT
+    const token = jwt.sign({ walletAddress: wallet.address, userId: user.id },
+                           APP_JWT_SECRET,
+                           { expiresIn: '7d' });
+
+    res.json({ token, walletAddress: wallet.address });
+  } catch (err) { next(err); }
 });
 
 export default router;

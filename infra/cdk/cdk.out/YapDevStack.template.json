@@ -23,7 +23,7 @@
     "Tags": [
      {
       "Key": "environment",
-      "Value": "dev"
+      "Value": "local"
      },
      {
       "Key": "project",

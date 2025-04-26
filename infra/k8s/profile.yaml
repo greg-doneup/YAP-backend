@@ -3,7 +3,18 @@ kind: ServiceAccount
 metadata:
   name: profile-sa
   annotations:
+    # Only include this annotation in non-local deployments
     eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/yap-profile-iam-role
+---
+# A local ConfigMap to simulate DynamoDB for local development
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-dev-config
+  labels:
+    app: profile
+data:
+  USE_LOCAL_DB: "true"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -33,6 +44,13 @@ spec:
               value: "us-east-1"
             - name: DDB_TABLE
               value: "Profiles"
+            # Include local development config
+            - name: USE_LOCAL_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: local-dev-config
+                  key: USE_LOCAL_DB
+                  optional: true
           envFrom:
             - secretRef:
                 name: profile-secrets

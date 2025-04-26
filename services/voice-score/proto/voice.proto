@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package voicescore;
+
+service VoiceScore {
+  rpc Evaluate (EvalRequest) returns (EvalResponse);
+}
+
+message EvalRequest {
+  bytes  audio            = 1;   // RAW PCM 16-bit little-endian 16 kHz mono
+  string expected_phrase  = 2;   // target text (“hola”)
+}
+
+message EvalResponse {
+  string transcript = 1;   // STT result
+  double score      = 2;   // 0-1 cosine similarity
+  bool   pass       = 3;   // true when score ≥ 0.8
+}

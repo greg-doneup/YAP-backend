@@ -23,6 +23,24 @@ build:
         manual:
           - src: "src/**/*.ts"
             dest: .
+    # ---------- VOICE-SCORE ----------        
+    - image: voice-score
+      context: services/voice-score
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "server/**/*.py"
+            dest: .
+    # ---------- GRAMMAR ----------
+    - image: grammar-service
+      context: services/grammar-service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.py"
+            dest: .
 
 deploy:
   kubectl:

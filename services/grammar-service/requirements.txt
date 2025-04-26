@@ -1,0 +1,3 @@
+fastapi==0.111.0
+uvicorn==0.29.0
+language-tool-python==2.7.1  # pulls LanguageTool-standalone JAR on first run (~200 MB cache)

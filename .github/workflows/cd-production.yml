@@ -5,14 +5,14 @@ on:
     branches: [ production ]      # merge of promotion PR
 
 env:
-  AWS_REGION: ${ vars.AWS_REGION }
-  ECR_REGISTRY: ${ vars.ECR_REGISTRY }
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
 
 jobs:
   deploy:
     name: Deploy ${{ matrix.service }} to Prod
     runs-on: ubuntu-latest
-    environment: Production      # human approval gate
+    environment: Production
     strategy:
       matrix:
         service: [ auth-service, learning-service, middleware-service ]
@@ -21,14 +21,34 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
+      # AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-region: ${{ env.AWS_REGION }}
 
+      # EKS kubeconfig
       - name: Configure kubectl
         run: aws eks update-kubeconfig --name yap-backend-prod --region $AWS_REGION
 
+      # ──────────────────────────────────────────
+      # Create / update auth-secrets (auth-service only)
+      # ──────────────────────────────────────────
+      - name: Create / update auth-secrets
+        if: matrix.service == 'auth-service'
+        env:
+          DYNAMIC_ENV_ID:  ${{ secrets.DYNAMIC_ENV_ID }}
+          DYNAMIC_API_KEY: ${{ secrets.DYNAMIC_API_KEY }}
+          APP_JWT_SECRET:  ${{ secrets.APP_JWT_SECRET }}
+        run: |
+          kubectl create secret generic auth-secrets \
+            --namespace=default \
+            --from-literal=DYNAMIC_ENV_ID="$DYNAMIC_ENV_ID" \
+            --from-literal=DYNAMIC_API_KEY="$DYNAMIC_API_KEY" \
+            --from-literal=APP_JWT_SECRET="$APP_JWT_SECRET" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # Roll out new image
       - name: Rollout ${{ matrix.service }}
         run: |
           IMAGE="$ECR_REGISTRY/${{ matrix.service }}:${GITHUB_SHA::8}"
@@ -38,8 +58,8 @@ jobs:
 
   fast-forward-master:
     name: Fast-forward master
-    runs-on: ubuntu-latest
     needs: deploy
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Sync master with production SHA

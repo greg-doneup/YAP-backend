@@ -11,25 +11,25 @@
     },
     "YapDevStack": {
       "type": "aws:cloudformation:stack",
-      "environment": "aws://unknown-account/us-east-1",
+      "environment": "aws://local-development/us-east-1",
       "properties": {
         "templateFile": "YapDevStack.template.json",
         "terminationProtection": false,
         "tags": {
-          "environment": "dev",
+          "environment": "local",
           "project": "Yap"
         },
         "validateOnSynth": false,
-        "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-deploy-role-${AWS::AccountId}-us-east-1",
-        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-cfn-exec-role-${AWS::AccountId}-us-east-1",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1/d36cbe512b1cdd8b62e5cb517d22bedb18ab87fbd6ad306de49bf1c4183b3559.json",
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::local-development:role/cdk-hnb659fds-deploy-role-local-development-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::local-development:role/cdk-hnb659fds-cfn-exec-role-local-development-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-local-development-us-east-1/b177307babcc9a3516f687b0bd80f6b6121424623f0261502f7609380c7b4dec.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
           "YapDevStack.assets"
         ],
         "lookupRole": {
-          "arn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-lookup-role-${AWS::AccountId}-us-east-1",
+          "arn": "arn:${AWS::Partition}:iam::local-development:role/cdk-hnb659fds-lookup-role-local-development-us-east-1",
           "requiresBootstrapStackVersion": 8,
           "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
         }
@@ -44,7 +44,7 @@
             "data": [
               {
                 "Key": "environment",
-                "Value": "dev"
+                "Value": "local"
               },
               {
                 "Key": "project",

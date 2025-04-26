@@ -1,18 +1,18 @@
 {
   "version": "41.0.0",
   "files": {
-    "d36cbe512b1cdd8b62e5cb517d22bedb18ab87fbd6ad306de49bf1c4183b3559": {
+    "b177307babcc9a3516f687b0bd80f6b6121424623f0261502f7609380c7b4dec": {
       "displayName": "YapDevStack Template",
       "source": {
         "path": "YapDevStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "current_account-us-east-1": {
-          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1",
-          "objectKey": "d36cbe512b1cdd8b62e5cb517d22bedb18ab87fbd6ad306de49bf1c4183b3559.json",
+        "local-development-us-east-1": {
+          "bucketName": "cdk-hnb659fds-assets-local-development-us-east-1",
+          "objectKey": "b177307babcc9a3516f687b0bd80f6b6121424623f0261502f7609380c7b4dec.json",
           "region": "us-east-1",
-          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-us-east-1"
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::local-development:role/cdk-hnb659fds-file-publishing-role-local-development-us-east-1"
         }
       }
     }

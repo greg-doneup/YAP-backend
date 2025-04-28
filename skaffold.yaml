@@ -41,7 +41,15 @@ build:
         manual:
           - src: "src/**/*.py"
             dest: .
-
+    # ---------- REWARD ----------
+    - image: reward-service
+      context: services/reward-service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.ts"
+            dest: .
 deploy:
   kubectl:
     manifests:

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reward-config
+data:
+  SEI_RPC: "https://sei-testnet-rpc.polkachu.com"
+  DAILY_CONTRACT: "sei1abc…xyz"

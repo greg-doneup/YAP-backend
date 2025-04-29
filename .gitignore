@@ -5,6 +5,8 @@ test
 *.log
 Dockerfile
 docker-compose*
+abi
+.env
 *.env
 *.env.*
 *.tsbuildinfo
@@ -28,3 +30,4 @@ evm_contracts/node_modules
 evm_contracts/tsconfig.tsbuildinfo
 evm_contracts/tsconfig.tsbuildinfo
 evm_contracts/typechain-types/*
+hardhat.config.ts

@@ -3,5 +3,10 @@ kind: ConfigMap
 metadata:
   name: reward-config
 data:
-  SEI_RPC: "https://sei-testnet-rpc.polkachu.com"
-  DAILY_CONTRACT: "sei1abc…xyz"
+  EVM_RPC: "https://evm-rpc-arctic-1.sei-apis.com"
+  CHAIN_ID: "713715"
+  TOKEN_ADDR: "0xc010C027c557dB20F5A0cE653Cca257A3De24843"
+  COMPLETION_ADDR: "0x7a67Cd67A8283BCBbEB53136Cf83a7a6729d9269"
+  PORT: "3003"
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"

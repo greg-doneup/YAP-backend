@@ -30,4 +30,3 @@ evm_contracts/node_modules
 evm_contracts/tsconfig.tsbuildinfo
 evm_contracts/tsconfig.tsbuildinfo
 evm_contracts/typechain-types/*
-evm_contracts/hardhat.config.ts

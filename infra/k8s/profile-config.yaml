@@ -1,0 +1,8 @@
+# infra/k8s/profile-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: profile-config          # must match Deployment envFrom reference
+data:
+  DDB_TABLE: "Profiles"         # DynamoDB table name
+  AWS_REGION: "us-east-1"       # region where the table lives

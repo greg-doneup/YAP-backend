@@ -50,6 +50,17 @@ build:
         manual:
           - src: "src/**/*.ts"
             dest: .
+          - src: "abi/**/*.json"
+            dest: .
+    # ---------- OFFCHAIN-PROFILE ----------
+    - image: offchain-profile
+      context: services/offchain-profile
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.ts"
+            dest: .
 deploy:
   kubectl:
     manifests:

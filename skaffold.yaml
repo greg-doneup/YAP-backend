@@ -61,6 +61,39 @@ build:
         manual:
           - src: "src/**/*.ts"
             dest: .
+    # ---------- OBSERVABILITY ----------
+    - image: observability-service
+      context: services/observability-service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.ts"
+            dest: .
+    # ---------- LEARNING-SERVICE ----------
+    - image: learning-service
+      context: services/learning-service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.ts"
+            dest: .
+          - src: "src/**/*.json"
+            dest: .
+          - src: "src/**/*.xml"
+            dest: .
+    # ---------- GATEWAY ----------
+    - image: gateway-service
+      context: services/gateway-service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.ts"
+            dest: .
+          - src: "src/**/*.json"
+            dest: .
 deploy:
   kubectl:
     manifests:

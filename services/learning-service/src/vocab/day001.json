@@ -1,0 +1,51 @@
+[
+  {
+    "id": "word-1",
+    "term": "hello",
+    "translation": "안녕하세요",
+    "difficulty": 1,
+    "examples": ["Hello, how are you?", "Hello, nice to meet you."]
+  },
+  {
+    "id": "word-2",
+    "term": "goodbye",
+    "translation": "안녕히 가세요",
+    "difficulty": 1,
+    "examples": ["Goodbye, see you tomorrow.", "Goodbye, have a nice day."]
+  },
+  {
+    "id": "word-3",
+    "term": "thank you",
+    "translation": "감사합니다",
+    "difficulty": 1,
+    "examples": ["Thank you for your help.", "Thank you very much."]
+  },
+  {
+    "id": "word-4",
+    "term": "please",
+    "translation": "부탁합니다",
+    "difficulty": 1,
+    "examples": ["Please help me.", "Please come in."]
+  },
+  {
+    "id": "word-5",
+    "term": "sorry",
+    "translation": "죄송합니다",
+    "difficulty": 1,
+    "examples": ["I'm sorry for the mistake.", "Sorry, I'm late."]
+  },
+  {
+    "id": "word-6",
+    "term": "yes",
+    "translation": "네",
+    "difficulty": 1,
+    "examples": ["Yes, I understand.", "Yes, that's correct."]
+  },
+  {
+    "id": "word-7",
+    "term": "no",
+    "translation": "아니요",
+    "difficulty": 1,
+    "examples": ["No, I don't understand.", "No, that's wrong."]
+  }
+]

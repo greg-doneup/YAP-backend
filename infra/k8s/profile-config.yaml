@@ -6,3 +6,4 @@ metadata:
 data:
   DDB_TABLE: "Profiles"         # DynamoDB table name
   AWS_REGION: "us-east-1"       # region where the table lives
+  AWS_ENDPOINT_URL: "http://host.minikube.internal:4566"  # LocalStack endpoint for local development

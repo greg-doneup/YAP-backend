@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package voicescore;
+
+service VoiceScore {
+  // Evaluate audio recording against an expected phrase
+  rpc Evaluate(EvaluateRequest) returns (EvaluateResponse);
+  
+  // Get vocabulary list
+  rpc GetVocab(GetVocabRequest) returns (GetVocabResponse);
+  
+  // Get a specific vocabulary item by ID
+  rpc GetVocabItem(GetVocabItemRequest) returns (VocabItem);
+  
+  // Get multiple vocabulary items by their IDs
+  rpc GetVocabItems(GetVocabItemsRequest) returns (GetVocabItemsResponse);
+  
+  // Get daily results for a specific wallet and date
+  rpc GetDailyResults(GetDailyResultsRequest) returns (GetDailyResultsResponse);
+  
+  // Get daily completions for a specific wallet and date
+  rpc GetDailyCompletions(GetDailyCompletionsRequest) returns (GetDailyCompletionsResponse);
+  
+  // Get a specific daily completion for a wallet and date
+  rpc GetDailyCompletion(GetDailyCompletionRequest) returns (DailyCompletion);
+}
+
+message EvaluateRequest {
+  bytes audio = 1;
+  string expected_phrase = 2;
+}
+
+message EvaluateResponse {
+  float score = 1;
+}
+
+message GetVocabRequest {}
+
+message GetVocabResponse {
+  repeated string vocab = 1;
+}
+
+message GetVocabItemRequest {
+  string id = 1;
+}
+
+message VocabItem {
+  string id = 1;
+  string term = 2;
+  string translation = 3;
+}
+
+message GetVocabItemsRequest {
+  repeated string ids = 1;
+}
+
+message GetVocabItemsResponse {
+  repeated VocabItem items = 1;
+}
+
+message GetDailyResultsRequest {
+  string wallet = 1;
+  string date = 2;
+}
+
+message DailyResult {
+  string id = 1;
+  string wallet = 2;
+  string date = 3;
+  float score = 4;
+  bool pass = 5;
+  optional string type = 6;
+}
+
+message GetDailyResultsResponse {
+  repeated DailyResult results = 1;
+}
+
+message GetDailyCompletionsRequest {
+  string wallet = 1;
+  string date = 2;
+}
+
+message DailyCompletion {
+  string id = 1;
+  string wallet = 2;
+  string date = 3;
+  bool completed = 4;
+  optional float score = 5;
+  optional string reward_tx = 6;
+}
+
+message GetDailyCompletionsResponse {
+  repeated DailyCompletion completions = 1;
+}
+
+message GetDailyCompletionRequest {
+  string wallet = 1;
+  string date = 2;
+}

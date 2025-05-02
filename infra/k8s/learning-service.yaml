@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: learning-service }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: learning-service } }
+  template:
+    metadata: { labels: { app: learning-service } }
+    spec:
+      containers:
+        - name: learning
+          image: learning-service
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - secretRef: { name: profile-secrets }    # brings APP_JWT_SECRET
+---
+apiVersion: v1
+kind: Service
+metadata: { name: learning-service }
+spec:
+  selector: { app: learning-service }
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http

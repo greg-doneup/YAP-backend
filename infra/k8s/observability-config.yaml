@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: obs-config }
+data:
+  USAGE_TABLE: "UsageEvents"
+  AWS_REGION:  "us-east-1"
+  AWS_ENDPOINT_URL: "http://host.minikube.internal:4566"  # LocalStack endpoint

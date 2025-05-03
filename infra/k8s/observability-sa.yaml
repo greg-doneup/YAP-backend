@@ -3,5 +3,4 @@ kind: ServiceAccount
 metadata:
   name: observability-sa
   annotations:
-    # This is where you would add AWS IAM role annotations for IRSA in production
-    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/observability-role
+    eks.amazonaws.com/role-arn: ${aws_iam_role.observability_service_role.arn}

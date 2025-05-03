@@ -3,8 +3,7 @@ kind: ServiceAccount
 metadata:
   name: profile-sa
   annotations:
-    # Only include this annotation in non-local deployments
-    eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/yap-profile-iam-role
+    eks.amazonaws.com/role-arn: ${aws_iam_role.offchain_profile_role.arn}
 ---
 # A local ConfigMap to simulate DynamoDB for local development
 apiVersion: v1

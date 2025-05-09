@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": "/",
+    "rootDir": "/",
+    "resolveJsonModule": true,
+    "paths": {
+      "../../shared/*": ["/shared/*"],
+      "../../../shared/*": ["/shared/*"]
+    }
+  },
+  "include": ["/app/src/**/*", "/shared/auth/authMiddleware.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+}

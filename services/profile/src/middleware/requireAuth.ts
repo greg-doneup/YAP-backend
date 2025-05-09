@@ -1,5 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import jwt from 'jsonwebtoken';
+
+// Define types using the express namespace
+type Request = express.Request;
+type Response = express.Response;
+type NextFunction = express.NextFunction;
 
 export function requireAuth(secret: string) {
   return (req: Request, res: Response, next: NextFunction) => {

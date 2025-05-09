@@ -1,9 +1,32 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
-const REGION = process.env.AWS_REGION || "us-east-1";
-export const TABLE = process.env.DDB_TABLE!;
+// Initialize DynamoDB client
+const client = new DynamoDBClient({ 
+  region: process.env.AWS_REGION || 'us-west-2',
+  // For local development with DynamoDB Local
+  ...(process.env.DYNAMO_ENDPOINT && { 
+    endpoint: process.env.DYNAMO_ENDPOINT,
+    credentials: { accessKeyId: 'local', secretAccessKey: 'local' }
+  })
+});
 
-export const ddb = DynamoDBDocumentClient.from(
-  new DynamoDBClient({ region: REGION })
-);
+// Create DocumentClient for easier interaction
+export const ddb = DynamoDBDocumentClient.from(client);
+
+// DynamoDB table name for profiles
+export const TABLE = process.env.PROFILES_TABLE || 'profiles';
+
+// Export types
+export { QueryCommand };
+
+// Define Profile interface
+export interface Profile {
+  userId: string;
+  walletAddress: string;
+  ethWalletAddress?: string;
+  xp: number;
+  streak: number;
+  createdAt: string;
+  updatedAt: string;
+}

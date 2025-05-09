@@ -24,6 +24,10 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 COPY package.json ./
 
+# Create data directory and set permissions
+RUN mkdir -p /home/app/src/data && \
+    chown -R app:app /home/app/src/data
+
 ENV NODE_ENV=production \
     PORT=8080
 

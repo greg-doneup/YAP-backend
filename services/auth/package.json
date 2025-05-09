@@ -2,7 +2,7 @@
   "name": "yap-auth-service",
   "version": "0.2.0",
   "private": true,
-  "description": "Dynamic.xyz-based auth and wallet orchestration",
+  "description": "Simple wallet-based auth service",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
@@ -14,11 +14,10 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "jwks-rsa": "^3.0.2"
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

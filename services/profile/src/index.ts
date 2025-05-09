@@ -1,21 +1,41 @@
 import express from 'express';
-import profileRouter from './routes/profile';
+import morgan from 'morgan';
+import cors from 'cors';
+import { requireAuth, getUserIdFromRequest, getWalletAddressesFromRequest } from './shared/auth/authMiddleware';
+import { profileValidator } from './validators';
+import { profileController } from './controllers';
 
-import { requireAuth } from './middleware/requireAuth';   // Updated to use local middleware
+const app = express();
+const PORT = process.env.PORT || 8080;
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
 
-
-const PORT = process.env.PORT || 8080;
-const app = express();
+app.use(cors());
 app.use(express.json());
+app.use(morgan('dev'));
 
-app.use('/profile',
-    requireAuth(APP_JWT_SECRET),   // 🔒 all /profile/* routes now guarded
-    profileRouter,
-  );
-app.get('/healthz', (_req, res) => res.send('ok'));
-
-const server = app.listen(PORT, () =>
-  console.log(`Profile service listening on ${PORT}`)
+// Apply authentication middleware to all profile routes
+app.use('/profile', 
+    requireAuth(APP_JWT_SECRET),
+    profileValidator,
+    profileController
 );
-process.on('SIGTERM', () => server.close());
+
+// Health check endpoint
+app.get('/healthz', (_, res) => {
+  res.json({ status: 'ok', service: 'profile' });
+});
+
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Error:', err);
+  const statusCode = err.statusCode || 500;
+  res.status(statusCode).json({
+    error: err.message || 'Internal Server Error'
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`Profile service running on port ${PORT}`);
+});
+
+export default app;

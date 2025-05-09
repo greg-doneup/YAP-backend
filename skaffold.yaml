@@ -16,12 +16,12 @@ build:
             dest: .
     # ---------- PROFILE ----------
     - image: profile-service           # must match profile.yaml .spec.template.image
-      context: services/profile
+      context: services
       docker:
-        dockerfile: Dockerfile
+        dockerfile: profile/Dockerfile
       sync:
         manual:
-          - src: "src/**/*.ts"
+          - src: "profile/src/**/*.ts"
             dest: .
     # ---------- VOICE-SCORE ----------        
     - image: voice-score
@@ -54,12 +54,12 @@ build:
             dest: .
     # ---------- OFFCHAIN-PROFILE ----------
     - image: offchain-profile
-      context: services/offchain-profile
+      context: services
       docker:
-        dockerfile: Dockerfile
+        dockerfile: offchain-profile/Dockerfile
       sync:
         manual:
-          - src: "src/**/*.ts"
+          - src: "offchain-profile/src/**/*.ts"
             dest: .
     # ---------- OBSERVABILITY ----------
     - image: observability-service

@@ -1,7 +1,13 @@
-import { Router } from "express";
-const router = Router();
+import express from 'express';
 
-// Health check route for Kubernetes readiness probe
-router.get("/", (_req, res) => res.send("ok"));
+const router = express.Router();
+
+router.get('/', (_, res) => {
+  res.json({ 
+    status: 'ok', 
+    service: 'offchain-profile',
+    timestamp: new Date().toISOString()
+  });
+});
 
 export default router;

@@ -2,11 +2,20 @@
     "compilerOptions": {
       "target": "es2022",
       "module": "commonjs",
-      "rootDir": "src",
+      "rootDir": "./src",
       "outDir": "dist",
       "strict": true,
       "esModuleInterop": true,
-      "skipLibCheck": true
-    }
-  }
-  
+      "skipLibCheck": true,
+      "baseUrl": "..",
+      "paths": {
+        "*": ["profile/node_modules/*"],
+        "../../shared/*": ["shared/*"],
+        "../../../shared/*": ["shared/*"]
+      },
+      "resolveJsonModule": true,
+      "typeRoots": ["./node_modules/@types", "./src/types"]
+    },
+    "include": ["src/**/*", "src/types/*.d.ts"],
+    "exclude": ["node_modules", "dist", "../shared/**/*.test.ts", "../shared/**/*.spec.ts"]
+}

@@ -19,6 +19,7 @@ spec:
             - containerPort: 8080
           envFrom:
             - secretRef:    { name: profile-secrets }
+            - secretRef:    { name: mongodb-secrets }
             - configMapRef: { name: profile-config }
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }

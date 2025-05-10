@@ -3,7 +3,7 @@ kind: Config
 
 build:
   local:
-    push: false                # keep images local for Docker-Desktop K8s
+    push: false                # keep images local
   artifacts:
     # ---------- AUTH ----------
     - image: auth-service
@@ -97,7 +97,10 @@ build:
 deploy:
   kubectl:
     manifests:
-      - infra/k8s/*.yaml               # picks up profile.yaml, profile-hpa.yaml, etc.
+      - infra/k8s/*.yaml       # picks up profile.yaml, profile-hpa.yaml, etc.
+  # Use the default context (no explicit kubeContext)
+  logs:
+    prefix: container
 
 profiles:
   - name: local
@@ -108,3 +111,4 @@ profiles:
       kubectl:
         manifests:
           - infra/k8s/*.yaml
+      # No explicit kubeContext here either

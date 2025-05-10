@@ -4,10 +4,16 @@ import cors from 'cors';
 import { requireAuth, getUserIdFromRequest, getWalletAddressesFromRequest } from './shared/auth/authMiddleware';
 import { profileValidator } from './validators';
 import { profileController } from './controllers';
+import { connectToDatabase } from './mon/mongo';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
+
+// Initialize MongoDB connection
+connectToDatabase()
+  .then(() => console.log('MongoDB connection initialized'))
+  .catch(err => console.error('MongoDB connection failed:', err));
 
 app.use(cors());
 app.use(express.json());

@@ -1,11 +1,15 @@
 import express from 'express';
-import { ddb, TABLE } from '../dal/dynamo';
-import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { connectToDatabase, getItem, putItem, updateItem } from '../mon/mongo';
 import { Profile } from '../types';
 import { v4 as uuid } from 'uuid';
 import { getUserIdFromRequest, getWalletAddressesFromRequest } from '../shared/auth/authMiddleware';
 
 const router = express.Router();
+
+// Initialize MongoDB connection
+connectToDatabase().catch(err => {
+  console.error('Failed to connect to MongoDB:', err);
+});
 
 /** GET /profile/:wallet */
 router.get('/:wallet', async (req, res, next) => {
@@ -25,9 +29,7 @@ router.get('/:wallet', async (req, res, next) => {
       });
     }
     
-    const { Item } = await ddb.send(
-      new GetCommand({ TableName: TABLE, Key: { walletAddress: requestedWallet } })
-    );
+    const { Item } = await getItem(requestedWallet);
     if (!Item) return res.status(404).json({
       error: 'not_found',
       message: 'Profile not found'
@@ -62,15 +64,21 @@ router.post('/', async (req, res, next) => {
     };
     
     try {
-      await ddb.send(new PutCommand({ 
-        TableName: TABLE, 
-        Item: profile, 
-        ConditionExpression: 'attribute_not_exists(walletAddress)' 
-      }));
+      // First check if profile exists
+      const { Item: existingProfile } = await getItem(userWallet);
+      
+      if (existingProfile) {
+        return res.status(409).json({ 
+          error: 'profile_exists',
+          message: 'Profile for this wallet already exists' 
+        });
+      }
+      
+      await putItem(profile);
       res.status(201).json(profile);
     } catch (err: any) {
-      // Check for profile already exists error
-      if (err.name === 'ConditionalCheckFailedException') {
+      // Handle duplicate key error from MongoDB (fallback)
+      if (err.code === 11000) {
         return res.status(409).json({ 
           error: 'profile_exists',
           message: 'Profile for this wallet already exists' 
@@ -104,19 +112,21 @@ router.patch('/:wallet', async (req, res, next) => {
     if (req.body.streak !== undefined) updates.streak = req.body.streak;
     if (req.body.xp !== undefined) updates.xp = req.body.xp;
 
-    const expr = Object.keys(updates).map((k, i) => `#k${i} = :v${i}`).join(', ');
-    const names = Object.keys(updates).reduce((acc, k, i) => ({ ...acc, [`#k${i}`]: k }), {});
-    const vals  = Object.values(updates).reduce((acc, v, i) => ({ ...acc, [`:v${i}`]: v }), {});
-
-    await ddb.send(
-      new UpdateCommand({
-        TableName: TABLE,
-        Key: { walletAddress: requestedWallet },
-        UpdateExpression: `SET ${expr}`,
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: vals,
-      })
-    );
+    // Format for MongoDB update - equivalent to DynamoDB expression
+    const result = await updateItem({
+      Key: { userId: requestedWallet },
+      UpdateExpression: `SET ${Object.keys(updates).map((k, i) => `#k${i} = :v${i}`).join(', ')}`,
+      ExpressionAttributeNames: Object.keys(updates).reduce((acc, k, i) => ({ ...acc, [`#k${i}`]: k }), {}),
+      ExpressionAttributeValues: Object.values(updates).reduce((acc, v, i) => ({ ...acc, [`:v${i}`]: v }), {})
+    });
+    
+    if (!result.Attributes) {
+      return res.status(404).json({
+        error: 'not_found',
+        message: 'Profile not found'
+      });
+    }
+    
     res.sendStatus(204);
   } catch (err) { next(err); }
 });

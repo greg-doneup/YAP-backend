@@ -7,6 +7,7 @@ import pointsRoutes from "./routes/points";
 import dotenv from "dotenv";
 import health from "./routes/health";
 import jwt from "jsonwebtoken";
+import { connectToDatabase } from "./mon/mongo";
 
 // Implement proper JWT verification middleware instead of the stub
 const requireAuth = (secret: string) => {
@@ -42,7 +43,14 @@ const requireAuth = (secret: string) => {
   };
 };
 
+// Load environment variables
 dotenv.config();
+
+// Connect to MongoDB
+connectToDatabase()
+  .then(() => console.log('MongoDB connection initialized'))
+  .catch(err => console.error('MongoDB connection failed:', err));
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 const SECRET = process.env.APP_JWT_SECRET!;

@@ -11,9 +11,11 @@ const APP_REFRESH_SECRET = process.env.APP_REFRESH_SECRET || APP_JWT_SECRET + '_
 const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token (15 minutes)
 const REFRESH_TOKEN_EXPIRY = '30d'; // Long-lived refresh token (30 days)
 
-// Use the gateway service for profile creation with correct port (80)
-// Gateway exposes port 80 externally but maps to 8080 internally
-const GATEWAY_SERVICE_URL = process.env.GATEWAY_SERVICE_URL || 'http://gateway-service';  // Port 80 is default
+// Use the gateway service and profile service with correct ports and endpoints
+// In Kubernetes, services typically expose port 80 externally (mapped to container port)
+const GATEWAY_SERVICE_URL = process.env.GATEWAY_SERVICE_URL || 'http://gateway-service';
+const PROFILE_SERVICE_URL = process.env.PROFILE_SERVICE_URL || 'http://profile-service';
+const OFFCHAIN_PROFILE_URL = process.env.OFFCHAIN_PROFILE_URL || 'http://offchain-profile';
 const SKIP_PROFILE_CREATION = process.env.SKIP_PROFILE_CREATION === 'true';
 
 const router = Router();
@@ -55,6 +57,23 @@ const generateTokens = async (userId: string, walletAddress: string, ethWalletAd
   return { accessToken, refreshToken };
 };
 
+// Helper function to generate a service token for profile service authentication
+const generateServiceToken = async (userId: string, walletAddress: string, ethWalletAddress: string) => {
+  // Generate a short-lived token for service-to-service communication
+  const token = jwt.sign(
+    { 
+      walletAddress,
+      ethWalletAddress,
+      sub: userId,
+      type: 'access'
+    },
+    APP_JWT_SECRET,
+    { expiresIn: '1m' } // Very short expiry for service calls
+  );
+  
+  return token;
+};
+
 // Create/update user profiles in profile services through gateway
 const createUserProfiles = async (userId: string, seiWalletAddress: string, ethWalletAddress: string, signupMethod: string) => {
   try {
@@ -64,7 +83,7 @@ const createUserProfiles = async (userId: string, seiWalletAddress: string, ethW
       return true;
     }
 
-    console.log(`Attempting to create profiles through gateway at ${GATEWAY_SERVICE_URL}`);
+    console.log(`Attempting to create profiles`);
     
     // Profile creation with timeout and better error handling
     const profileData = {
@@ -74,49 +93,77 @@ const createUserProfiles = async (userId: string, seiWalletAddress: string, ethW
       signupMethod
     };
     
+    console.log('Profile data:', JSON.stringify(profileData));
+    
     const axiosConfig = {
-      timeout: 10000 // 10 second timeout
+      timeout: 5000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${await generateServiceToken(userId, seiWalletAddress, ethWalletAddress)}`
+      }
     };
     
     let mainProfileCreated = false;
-    let offchainProfileCreated = false;
     
-    // Create main profile through gateway
+    // STEP 1: First create the base profile in the main profile service
     try {
-      console.log(`Creating main profile at ${GATEWAY_SERVICE_URL}/profile/profiles`);
-      const profileResponse = await axios.post(`${GATEWAY_SERVICE_URL}/profile/profiles`, profileData, axiosConfig);
+      console.log(`Trying direct connection to profile service at ${PROFILE_SERVICE_URL}/profile`);
+      const profileResponse = await axios.post(`${PROFILE_SERVICE_URL}/profile`, profileData, axiosConfig);
       console.log(`✅ Created profile in main profile service: Status ${profileResponse.status}`);
       mainProfileCreated = true;
     } catch (error: any) {
-      if (error.response) {
-        // The request was made and the server responded with a non-2xx status code
-        console.error(`❌ Failed to create main profile - Status: ${error.response.status}`);
-        console.error('Error details:', error.response.data);
-      } else if (error.request) {
-        // The request was made but no response was received
-        console.error(`❌ No response from profile service: ${error.message}`);
-        console.error(`Request details: ${JSON.stringify(error.request._header || {})}`);
+      // Check if error is due to profile already existing (409 Conflict)
+      if (error.response && error.response.status === 409) {
+        console.log(`ℹ️ Profile already exists in main profile service`);
+        mainProfileCreated = true;
       } else {
-        // Something happened in setting up the request
-        console.error(`❌ Request setup error: ${error.message}`);
+        console.error(`❌ Failed direct connection to profile service:`, error.message);
+        
+        // Fallback to gateway service if direct connection fails
+        try {
+          console.log(`Falling back to gateway: ${GATEWAY_SERVICE_URL}/profile`);
+          const profileResponse = await axios.post(
+            `${GATEWAY_SERVICE_URL}/profile?t=${Date.now()}`, 
+            profileData, 
+            axiosConfig
+          );
+          console.log(`✅ Created profile via gateway: Status ${profileResponse.status}`);
+          mainProfileCreated = true;
+        } catch (gatewayError: any) {
+          // Check if gateway error is due to profile already existing
+          if (gatewayError.response && gatewayError.response.status === 409) {
+            console.log(`ℹ️ Profile already exists via gateway`);
+            mainProfileCreated = true;
+          } else {
+            console.error(`❌ Gateway fallback also failed:`, gatewayError.message);
+          }
+        }
       }
     }
     
-    // Create offchain profile directly (offchain-profile doesn't seem to have a gateway endpoint)
-    try {
-      // Try via gateway first
-      console.log(`Creating offchain profile via direct connection`);
-      // Use kubectl port-forward if all else fails and the pods can't communicate directly
-      const offchainResponse = await axios.post(`http://offchain-profile:8080/profiles`, profileData, axiosConfig);
-      console.log(`✅ Created offchain profile: Status ${offchainResponse.status}`);
-      offchainProfileCreated = true;
-    } catch (error: any) {
-      console.error(`❌ Failed to create offchain profile: ${error.message}`);
-      // Don't rethrow - we'll continue even if this fails
+    // Only proceed with offchain profile if main profile was created or already exists
+    if (mainProfileCreated) {
+      // STEP 2: Now handle the offchain profile, which will update the existing document
+      try {
+        console.log(`Updating offchain attributes via direct connection to ${OFFCHAIN_PROFILE_URL}/profile`);
+        const offchainResponse = await axios.post(`${OFFCHAIN_PROFILE_URL}/profile`, profileData, axiosConfig);
+        console.log(`✅ Updated offchain profile: Status ${offchainResponse.status}`);
+        return true;
+      } catch (error: any) {
+        // Even if offchain update fails, we still have the main profile
+        if (error.response && error.response.status === 409) {
+          console.log(`ℹ️ Offchain profile already exists for user ${userId}`);
+          return true;
+        } else {
+          console.error(`❌ Failed to update offchain profile: ${error.message}`);
+          // Return true since the main profile exists
+          return true;
+        }
+      }
     }
     
-    // Report success as long as one profile was created
-    return mainProfileCreated || offchainProfileCreated;
+    return mainProfileCreated;
   } catch (error: any) {
     console.error('Error creating user profiles:', error.message);
     // Return true to continue authentication even if profile creation fails
@@ -125,24 +172,22 @@ const createUserProfiles = async (userId: string, seiWalletAddress: string, ethW
 };
 
 /* ── 1️⃣  POST /auth/wallet  ────────────────────────────────────────────
-   Body: { walletAddress, ethWalletAddress, signupMethod }
+   Body: { userId, walletAddress, ethWalletAddress, signupMethod }
    Resp: { token, refreshToken, walletAddress, ethWalletAddress, userId }
    
    Direct wallet authentication 
 */
 router.post("/wallet", async (req, res) => {
   try {
-    const { walletAddress, ethWalletAddress, signupMethod = "wallet" } = req.body;
+    const { userId, walletAddress, ethWalletAddress, signupMethod = "wallet" } = req.body;
     
     if (!walletAddress) {
       return res.status(400).json({ message: "walletAddress required" });
     }
     
-    // Generate a consistent userId from the wallet address
-    const userId = crypto.createHash('sha256')
-      .update(walletAddress)
-      .digest('hex')
-      .substring(0, 24);
+    if (!userId) {
+      return res.status(400).json({ message: "userId required" });
+    }
     
     // Associate wallets with the user
     const walletResult = await createEmbeddedWallet(

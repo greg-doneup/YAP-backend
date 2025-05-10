@@ -4,6 +4,8 @@ kind: ConfigMap
 metadata:
   name: profile-config          # must match Deployment envFrom reference
 data:
-  DDB_TABLE: "Profiles"         # DynamoDB table name
-  AWS_REGION: "us-east-1"       # region where the table lives
-  AWS_ENDPOINT_URL: "http://host.minikube.internal:4566"  # LocalStack endpoint for local development
+  # Use MongoDB Atlas in development too
+  MONGO_URI: "mongodb+srv://gregb:AB6zZqCHJBUJMSxK@cluster0.dj837ya.mongodb.net/yap?retryWrites=true&w=majority&appName=Cluster0"
+  MONGO_DB_NAME: "yap"
+  # Development flags
+  USE_LOCAL_MONGO: "false"       # Set to use MongoDB Atlas instead of local

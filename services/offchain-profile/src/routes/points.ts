@@ -1,6 +1,5 @@
 import express from "express";
-import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { ddb, TABLE, QueryCommand } from "../dal/dynamo";
+import { mongo } from "../mon/mongo";
 
 // Stub for auth middleware until it's properly injected in Docker build
 const getUserIdFromRequest = (req: express.Request): string | undefined => {
@@ -46,15 +45,16 @@ router.patch("/add", async (req, res, next) => {
     // Use the validated wallet address
     const walletToUpdate = isAdmin ? targetWallet : userWallet;
     
-    await ddb.send(new UpdateCommand({
-      TableName: TABLE,
-      Key: { walletAddress: walletToUpdate },
-      UpdateExpression: "ADD xp :a; SET updatedAt = :t",
-      ExpressionAttributeValues: {
-        ":a": Number(amount),
-        ":t": new Date().toISOString()
-      }
-    }));
+    // Add XP points using MongoDB
+    const updatedProfile = await mongo.addXP(walletToUpdate, Number(amount));
+    
+    if (!updatedProfile) {
+      return res.status(404).json({
+        error: 'profile_not_found',
+        message: 'Profile not found for the specified wallet'
+      });
+    }
+    
     res.sendStatus(204);
   } catch (err) { next(err); }
 });
@@ -63,16 +63,8 @@ router.patch("/add", async (req, res, next) => {
 router.get("/leaderboard", async (req, res, next) => {
   try {
     const limit = Number(req.query.limit) || 10;
-    const data = await ddb.send(new QueryCommand({
-      TableName: TABLE,
-      IndexName: "XpIndex",          // GSI xp desc
-      KeyConditionExpression: "#xp >= :zero",
-      ExpressionAttributeNames: { "#xp": "xp" },
-      ExpressionAttributeValues: { ":zero": 0 },
-      ScanIndexForward: false,
-      Limit: limit
-    }));
-    res.json(data.Items);
+    const leaderboard = await mongo.getLeaderboard(limit);
+    res.json(leaderboard);
   } catch (err) { next(err); }
 });
 

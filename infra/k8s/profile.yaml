@@ -5,7 +5,7 @@ metadata:
   annotations:
     eks.amazonaws.com/role-arn: ${aws_iam_role.offchain_profile_role.arn}
 ---
-# A local ConfigMap to simulate DynamoDB for local development
+# A local ConfigMap to simulate development environment
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,7 +13,7 @@ metadata:
   labels:
     app: profile
 data:
-  USE_LOCAL_DB: "true"
+  USE_LOCAL_MONGO: "true"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -39,20 +39,20 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: AWS_REGION
-              value: "us-east-1"
-            - name: DDB_TABLE
-              value: "Profiles"
             # Include local development config
-            - name: USE_LOCAL_DB
+            - name: USE_LOCAL_MONGO
               valueFrom:
                 configMapKeyRef:
                   name: local-dev-config
-                  key: USE_LOCAL_DB
+                  key: USE_LOCAL_MONGO
                   optional: true
           envFrom:
             - secretRef:
                 name: profile-secrets
+            - secretRef:
+                name: mongodb-secrets
+            - configMapRef:
+                name: profile-config
           readinessProbe:
             httpGet:
               path: /healthz

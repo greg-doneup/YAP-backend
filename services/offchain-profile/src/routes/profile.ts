@@ -1,7 +1,6 @@
 import express from "express";
-import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { mongo, Profile, connectToDatabase } from "../mon/mongo";
 import { v4 as uuid } from "uuid";
-import { ddb, TABLE, Profile } from "../dal/dynamo";
 
 // Get user ID from the verified JWT token in the request
 const getUserIdFromRequest = (req: express.Request): string | undefined => {
@@ -17,6 +16,11 @@ const getWalletAddressesFromRequest = (req: express.Request) => {
 };
 
 const router = express.Router();
+
+// Connect to MongoDB when routes are initialized
+connectToDatabase().catch(err => {
+  console.error('Failed to connect to MongoDB:', err);
+});
 
 /* GET /profile/:wallet */
 router.get("/:wallet", async (req, res, next) => {
@@ -36,17 +40,14 @@ router.get("/:wallet", async (req, res, next) => {
       });
     }
     
-    const { Item } = await ddb.send(new GetCommand({
-      TableName: TABLE,
-      Key: { walletAddress: requestedWallet }
-    }));
+    const profile = await mongo.getProfile(requestedWallet);
     
-    if (!Item) return res.status(404).json({
+    if (!profile) return res.status(404).json({
       error: 'not_found',
       message: 'Profile not found'
     });
     
-    res.json(Item);
+    res.json(profile);
   } catch (err) { next(err); }
 });
 
@@ -65,26 +66,39 @@ router.post("/", async (req, res, next) => {
     }
     
     const now = new Date().toISOString();
-    const prof: Profile = {
-      walletAddress: userWallet,  // Use authenticated wallet from token
-      ethWalletAddress: userEthWallet, // Add Ethereum wallet if available
-      userId: userId as string,   // Associate profile with user ID
-      xp: 0,
-      streak: 0,
-      createdAt: now,
-      updatedAt: now
-    };
     
     try {
-      await ddb.send(new PutCommand({
-        TableName: TABLE,
-        Item: prof,
-        ConditionExpression: "attribute_not_exists(walletAddress)"
-      }));
+      // First check if profile exists - this is now the expected flow
+      const existingProfile = await mongo.getProfile(userWallet);
+      
+      if (existingProfile) {
+        // Update with any offchain-specific attributes if needed
+        // For now, we're just ensuring up-to-date timestamps
+        const updatedProfile = await mongo.updateProfile(userWallet, {
+          updatedAt: now
+        });
+        
+        console.log(`Profile already exists for ${userWallet}, updated offchain attributes`);
+        return res.status(200).json(updatedProfile);
+      }
+      
+      // If profile doesn't exist (unusual case), create it as before
+      console.log(`Creating new profile for ${userWallet} - this should be rare`);
+      const prof: Profile = {
+        walletAddress: userWallet,
+        ethWalletAddress: userEthWallet,
+        userId: userId as string,
+        xp: 0,
+        streak: 0,
+        createdAt: now,
+        updatedAt: now
+      };
+      
+      await mongo.putProfile(prof);
       res.status(201).json(prof);
     } catch (err: any) {
-      // Check for profile already exists error
-      if (err.name === 'ConditionalCheckFailedException') {
+      // Handle duplicate key error from MongoDB (fallback)
+      if (err.code === 11000) {
         return res.status(409).json({ 
           error: 'profile_exists',
           message: 'Profile for this wallet already exists' 

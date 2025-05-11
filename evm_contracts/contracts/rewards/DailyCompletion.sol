@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "./token/YapToken.sol";
-import "./vesting/VestingBucket.sol";
+import "../token/YapToken.sol";
+import "../vesting/VestingBucket.sol";
 
 /**
  * @title DailyCompletion

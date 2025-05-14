@@ -1,0 +1,134 @@
+// This file is now deprecated. We're using the real MongoDB Atlas connection instead of an in-memory version.
+// The original implementation has been backed up to mongodb-test.ts.bak for reference.
+
+// Exporting empty/dummy functions that match the interface but log a warning
+import { Lesson, UserProgress, LessonCompletion } from "../types/lesson";
+
+// Initialize function that just logs a warning
+export async function initTestDb() {
+  console.warn("WARNING: In-memory MongoDB test implementation is deprecated. Using real MongoDB Atlas connection instead.");
+  return { uri: "mongodb://deprecated", db: null };
+  
+  mongod = await MongoMemoryServer.create();
+  const uri = await mongod.getUri();
+  
+  // Create client
+  client = new MongoClient(uri);
+  await client.connect();
+  
+  // Get DB
+  db = client.db("yap_test");
+  
+  // Create collections
+  await db.createCollection("lessons");
+  await db.createCollection("user_progress");
+  await db.createCollection("lesson_completions");
+  
+  // Create indexes
+  await db.collection("lessons").createIndex({ lesson_id: 1 }, { unique: true });
+  await db.collection("lessons").createIndex({ language: 1, level: 1 });
+  await db.collection("user_progress").createIndex({ userId: 1 }, { unique: true });
+  await db.collection("lesson_completions").createIndex({ userId: 1, timestamp: -1 });
+  await db.collection("lesson_completions").createIndex({ userId: 1, date: 1 });
+  
+  try {
+    // Load sample data
+    const sampleLessonsPath = path.join(__dirname, "../../sample-lessons.json");
+    const sampleLessons = JSON.parse(fs.readFileSync(sampleLessonsPath, "utf-8"));
+    
+    // Insert sample data
+    await db.collection("lessons").insertMany(sampleLessons);
+    console.log(`Inserted ${sampleLessons.length} sample lessons into test database`);
+  } catch (error) {
+    console.error("Error loading sample data:", error);
+  }
+  
+  initialized = true;
+  console.log("Test MongoDB initialized");
+  
+  return { uri, db };
+}
+
+// Stop MongoDB memory server
+export async function stopTestDb() {
+  if (client) {
+    await client.close();
+  }
+  if (mongod) {
+    await mongod.stop();
+  }
+  initialized = false;
+  console.log("Test MongoDB stopped");
+}
+
+// Database operations for testing
+export async function getLessonById(lessonId: string): Promise<Lesson | null> {
+  if (!db) {
+    await initTestDb();
+  }
+  return await db.collection("lessons").findOne({ lesson_id: lessonId });
+}
+
+export async function getLessonsByLanguageAndLevel(language: string, level: string): Promise<Lesson[]> {
+  if (!db) {
+    await initTestDb();
+  }
+  return await db.collection("lessons")
+    .find({ language, level })
+    .toArray();
+}
+
+export async function getUserProgress(userId: string): Promise<UserProgress | null> {
+  if (!db) {
+    await initTestDb();
+  }
+  return await db.collection("user_progress").findOne({ userId });
+}
+
+export async function createUserProgress(progress: UserProgress): Promise<string> {
+  if (!db) {
+    await initTestDb();
+  }
+  const result = await db.collection("user_progress").insertOne(progress);
+  return result.insertedId;
+}
+
+export async function updateUserProgress(userId: string, updates: Partial<UserProgress>): Promise<boolean> {
+  if (!db) {
+    await initTestDb();
+  }
+  const result = await db.collection("user_progress").updateOne(
+    { userId },
+    { $set: updates }
+  );
+  return result.matchedCount > 0;
+}
+
+export async function getLessonCompletions(userId: string, limit: number = 10): Promise<LessonCompletion[]> {
+  if (!db) {
+    await initTestDb();
+  }
+  return await db.collection("lesson_completions")
+    .find({ userId })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .toArray();
+}
+
+export async function createLessonCompletion(completion: LessonCompletion): Promise<string> {
+  if (!db) {
+    await initTestDb();
+  }
+  const result = await db.collection("lesson_completions").insertOne(completion);
+  return result.insertedId;
+}
+
+export async function getCompletionsByDate(userId: string, date: string): Promise<LessonCompletion[]> {
+  if (!db) {
+    await initTestDb();
+  }
+  return await db.collection("lesson_completions")
+    .find({ userId, date })
+    .sort({ timestamp: -1 })
+    .toArray();
+}

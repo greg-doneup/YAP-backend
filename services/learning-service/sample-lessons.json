@@ -1,0 +1,87 @@
+[
+  {
+    "lesson_id": "lesson-1",
+    "language": "en",
+    "level": "beginner",
+    "focus": "greetings",
+    "new_vocabulary": [
+      {
+        "id": "word-1",
+        "term": "hello",
+        "translation": "hola",
+        "difficulty": 1,
+        "examples": [
+          "Hello, how are you?",
+          "I said hello to my neighbor this morning."
+        ],
+        "tags": ["greetings", "common"]
+      },
+      {
+        "id": "word-2",
+        "term": "goodbye",
+        "translation": "adiós",
+        "difficulty": 1,
+        "examples": [
+          "I said goodbye to my friends after the party.",
+          "Goodbye, see you tomorrow!"
+        ],
+        "tags": ["greetings", "common"]
+      },
+      {
+        "id": "word-3",
+        "term": "please",
+        "translation": "por favor",
+        "difficulty": 1,
+        "examples": [
+          "Please pass the salt.",
+          "Could you help me, please?"
+        ],
+        "tags": ["courtesy", "common"]
+      },
+      {
+        "id": "word-4",
+        "term": "thank you",
+        "translation": "gracias",
+        "difficulty": 1,
+        "examples": [
+          "Thank you for your help.",
+          "I want to say thank you to everyone who supported me."
+        ],
+        "tags": ["courtesy", "common"]
+      },
+      {
+        "id": "word-5",
+        "term": "sorry",
+        "translation": "lo siento",
+        "difficulty": 1,
+        "examples": [
+          "I'm sorry for being late.",
+          "Sorry, I didn't hear what you said."
+        ],
+        "tags": ["courtesy", "common"]
+      }
+    ],
+    "speaking_exercises": [
+      {
+        "type": "dialogue",
+        "prompt": "Practice greeting someone and asking how they are",
+        "items": [
+          {
+            "question": "How do you greet someone in the morning?",
+            "example_answer": "Good morning! How are you today?"
+          },
+          {
+            "question": "How do you say goodbye to someone you'll see tomorrow?",
+            "example_answer": "Goodbye! See you tomorrow!"
+          }
+        ],
+        "leveling_note": "Focus on clear pronunciation of greeting phrases"
+      }
+    ],
+    "review_points": [
+      "Practice greetings daily with different people",
+      "Pay attention to formal vs informal greetings",
+      "Remember to make eye contact when greeting someone"
+    ]
+  }
+]

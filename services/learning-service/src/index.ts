@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import quizRoutes from "./routes/quiz";
 import dailyRoutes from "./routes/daily";
+import progressRoutes from "./routes/progress";
+import lessonRoutes from "./routes/lessons";
+import { closeConnection } from "./clients/mongodb";
 
 // Load environment variables
 dotenv.config();
@@ -18,6 +21,8 @@ app.use(cors());
 // Routes
 app.use("/quiz", quizRoutes);
 app.use("/daily", dailyRoutes);
+app.use("/progress", progressRoutes);
+app.use("/lessons", lessonRoutes);
 
 // Health check endpoint for Kubernetes
 app.get("/healthz", (_req, res) => {
@@ -35,7 +40,29 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 // Only start the server if this file is run directly
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Learning service running on port ${PORT}`);
   });
+  
+  // Graceful shutdown
+  const gracefulShutdown = async () => {
+    console.log('Gracefully shutting down...');
+    server.close(async () => {
+      console.log('HTTP server closed');
+      
+      // Close MongoDB connections
+      await closeConnection();
+      
+      process.exit(0);
+    });
+    
+    // Force close after timeout
+    setTimeout(() => {
+      console.error('Could not close connections in time, forcefully shutting down');
+      process.exit(1);
+    }, 10000);
+  };
+  
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGINT', gracefulShutdown);
 }

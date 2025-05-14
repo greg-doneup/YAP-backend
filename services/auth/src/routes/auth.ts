@@ -20,11 +20,52 @@ const SKIP_PROFILE_CREATION = process.env.SKIP_PROFILE_CREATION === 'true';
 
 const router = Router();
 
+// Function to fetch user's lesson progress from the learning service
+const getUserLessonProgress = async (userId: string) => {
+  try {
+    const response = await axios.get(`${GATEWAY_SERVICE_URL}/learning/progress?minimal=true`, {
+      params: { userId },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SERVICE_API_TOKEN}` // Use a service token for authentication
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      // If 404 error, the user doesn't have progress yet
+      if (error.response?.status === 404) {
+        console.log(`No lesson progress found for user ${userId}, using default values`);
+        // Return default progress values for new users
+        return {
+          currentLessonId: 'lesson-1', // Default first lesson
+          currentWordId: 'word-1',     // Default first word
+          nextWordAvailableAt: new Date().toISOString() // Available now
+        };
+      }
+      console.error(`Failed to fetch lesson progress for user ${userId}:`, error.response?.data || error.message);
+    } else {
+      console.error(`Unexpected error while fetching lesson progress for user ${userId}:`, error);
+    }
+    
+    // Still return default values on error to prevent auth failures
+    return {
+      currentLessonId: 'lesson-1',
+      currentWordId: 'word-1',
+      nextWordAvailableAt: new Date().toISOString()
+    };
+  }
+};
+
 // Helper function to generate tokens
 const generateTokens = async (userId: string, walletAddress: string, ethWalletAddress: string) => {
   // Get current timestamp for JWT issuance
   const issuedAt = Math.floor(Date.now() / 1000);
-  
+
+  // Fetch user's current lesson progress from the learning service
+  const { currentLessonId, currentWordId, nextWordAvailableAt } = await getUserLessonProgress(userId);
+
   // Generate access token
   const accessToken = jwt.sign(
     { 
@@ -32,12 +73,15 @@ const generateTokens = async (userId: string, walletAddress: string, ethWalletAd
       ethWalletAddress,
       sub: userId,
       iat: issuedAt,
-      type: 'access'
+      type: 'access',
+      currentLessonId,
+      currentWordId,
+      nextWordAvailableAt
     },
     APP_JWT_SECRET,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
-  
+
   // Generate refresh token with a unique identifier
   const refreshTokenId = crypto.randomBytes(32).toString('hex');
   const refreshToken = jwt.sign(
@@ -50,10 +94,10 @@ const generateTokens = async (userId: string, walletAddress: string, ethWalletAd
     APP_REFRESH_SECRET,
     { expiresIn: REFRESH_TOKEN_EXPIRY }
   );
-  
+
   // Store refresh token in database
   await saveRefreshToken(userId, refreshToken);
-  
+
   return { accessToken, refreshToken };
 };
 

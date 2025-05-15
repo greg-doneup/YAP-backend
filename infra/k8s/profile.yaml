@@ -51,6 +51,8 @@ spec:
                 name: profile-secrets
             - secretRef:
                 name: mongodb-secrets
+            - secretRef:
+                name: mongodb-secrets
             - configMapRef:
                 name: profile-config
           readinessProbe:

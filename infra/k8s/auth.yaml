@@ -5,10 +5,10 @@ metadata:
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: auth }
+    matchLabels: { app: auth-service }
   template:
     metadata:
-      labels: { app: auth }
+      labels: { app: auth-service }
     spec:
       containers:
         - name: auth

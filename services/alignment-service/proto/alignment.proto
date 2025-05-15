@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package alignment;
+
+service AlignmentService {
+  // Aligns audio with text to get word and phoneme-level timing information
+  rpc AlignText (AlignmentRequest) returns (AlignmentResponse) {}
+  
+  // Health check endpoint
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse) {}
+}
+
+message AlignmentRequest {
+  bytes audio_data = 1;       // Raw audio bytes
+  string text = 2;            // Text to align with the audio
+  string language_code = 3;   // Language code (e.g., "en-US", "es-ES")
+  string audio_format = 4;    // Format of the audio (e.g., "wav", "mp3")
+  string alignment_level = 5; // "word" or "phoneme"
+}
+
+message WordAlignment {
+  string word = 1;
+  float start_time = 2;       // In seconds
+  float end_time = 3;         // In seconds
+  float confidence = 4;       // Between 0 and 1
+}
+
+message PhonemeAlignment {
+  string phoneme = 1;
+  float start_time = 2;       // In seconds
+  float end_time = 3;         // In seconds
+  float confidence = 4;       // Between 0 and 1
+  string word = 5;            // The word this phoneme belongs to
+}
+
+message AlignmentResponse {
+  bool success = 1;
+  string message = 2;
+  repeated WordAlignment word_alignments = 3;
+  repeated PhonemeAlignment phoneme_alignments = 4;
+  string alignment_id = 5;    // Unique identifier for this alignment
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;            // true if service is healthy
+  string message = 2;         // Description of health status
+}

@@ -16,12 +16,12 @@ build:
             dest: .
     # ---------- PROFILE ----------
     - image: profile-service           # must match profile.yaml .spec.template.image
-      context: services
+      context: services/profile
       docker:
-        dockerfile: profile/Dockerfile
+        dockerfile: Dockerfile
       sync:
         manual:
-          - src: "profile/src/**/*.ts"
+          - src: "src/**/*.ts"
             dest: .
     # ---------- VOICE-SCORE ----------        
     - image: voice-score
@@ -54,12 +54,12 @@ build:
             dest: .
     # ---------- OFFCHAIN-PROFILE ----------
     - image: offchain-profile
-      context: services
+      context: services/offchain-profile
       docker:
-        dockerfile: offchain-profile/Dockerfile
+        dockerfile: Dockerfile
       sync:
         manual:
-          - src: "offchain-profile/src/**/*.ts"
+          - src: "src/**/*.ts"
             dest: .
     # ---------- OBSERVABILITY ----------
     - image: observability-service
@@ -93,6 +93,42 @@ build:
           - src: "src/**/*.ts"
             dest: .
           - src: "src/**/*.json"
+            dest: .
+            
+    # ---------- ALIGNMENT-SERVICE ----------
+    - image: alignment-service
+      context: services/alignment-service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "app/**/*.py"
+            dest: .
+          - src: "proto/**/*.proto"
+            dest: .
+
+    # ---------- PRONUNCIATION-SCORER ----------
+    - image: pronunciation-scorer
+      context: services/pronunciation-scorer
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "app/**/*.py"
+            dest: .
+          - src: "proto/**/*.proto"
+            dest: .
+
+    # ---------- TTS-SERVICE ----------
+    - image: tts-service
+      context: services/tts-service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "app/**/*.py"
+            dest: .
+          - src: "proto/**/*.proto"
             dest: .
 deploy:
   kubectl:

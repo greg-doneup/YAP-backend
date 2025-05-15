@@ -4,7 +4,7 @@ metadata:
   name: auth-service
   labels: { app: auth-service }
 spec:
-  selector: { app: auth }   # must match Deployment labels
+  selector: { app: auth-service }   # must match Deployment labels
   ports:
     - port: 80          # servicePort
       targetPort: 8080  # containerPort

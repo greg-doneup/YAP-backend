@@ -5,7 +5,7 @@ metadata:
   name: profile-config          # must match Deployment envFrom reference
 data:
   # Use MongoDB Atlas in development too
-  MONGO_URI: "mongodb+srv://gregb:AB6zZqCHJBUJMSxK@cluster0.dj837ya.mongodb.net/yap?retryWrites=true&w=majority&appName=Cluster0"
+  MONGO_URI: "mongodb+srv://yap-backend:sipwid-cemnYj-doqto2@cy0.uvp0w.mongodb.net/?retryWrites=true&w=majority&appName=CY0"
   MONGO_DB_NAME: "yap"
   # Development flags
   USE_LOCAL_MONGO: "false"       # Set to use MongoDB Atlas instead of local

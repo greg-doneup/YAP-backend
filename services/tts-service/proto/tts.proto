@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package tts;
+
+service TTSService {
+  // Generates speech from text
+  rpc GenerateSpeech (TTSRequest) returns (TTSResponse) {}
+  
+  // Health check endpoint
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse) {}
+}
+
+message TTSRequest {
+  string text = 1;              // Text to convert to speech
+  string language_code = 2;     // Language code (e.g., "en-US", "es-ES")
+  string voice_id = 3;          // Optional specific voice to use
+  string output_format = 4;     // Format of output (e.g., "mp3", "wav")
+  bool use_ssml = 5;            // Whether the input text is SSML or plain text
+  string region_variant = 6;    // Regional variant (e.g., "es-ES", "es-MX")
+  float speaking_rate = 7;      // Rate of speech (1.0 is normal)
+  float pitch = 8;              // Pitch adjustment (1.0 is normal)
+}
+
+message TTSResponse {
+  bool success = 1;
+  string message = 2;
+  bytes audio_data = 3;         // The generated audio
+  string audio_format = 4;      // Format of the audio (e.g., "mp3", "wav")
+  string cache_key = 5;         // Cache key for future reference
+  int32 duration_ms = 6;        // Duration of the audio in milliseconds
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;              // true if service is healthy
+  string message = 2;           // Description of health status
+}

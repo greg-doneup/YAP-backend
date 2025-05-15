@@ -13,6 +13,7 @@ spec:
           ports: [{ containerPort: 8080 }]
           envFrom:
             - secretRef: { name: profile-secrets }    # brings APP_JWT_SECRET
+            - secretRef: { name: mongodb-secrets }    # brings MONGO_URI and MONGO_DB_NAME
 ---
 apiVersion: v1
 kind: Service

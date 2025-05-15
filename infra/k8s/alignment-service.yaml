@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: alignment-service }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: alignment-service } }
+  template:
+    metadata: { labels: { app: alignment-service } }
+    spec:
+      containers:
+        - name: alignment-service
+          image: alignment-service  # For local development with Skaffold
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 50051, name: grpc }]
+          resources:
+            requests: { cpu: "1", memory: "2Gi" }
+            limits:   { cpu: "2", memory: "4Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: alignment-service }
+spec:
+  selector: { app: alignment-service }
+  ports:
+    - port: 50051
+      targetPort: 50051
+      name: grpc

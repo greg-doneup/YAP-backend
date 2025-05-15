@@ -1,0 +1,26 @@
+# GOP (Goodness of Pronunciation) dependencies
+kaldi-gop>=0.1.0
+kaldi-python>=0.1.0
+
+# gRPC dependencies
+grpcio>=1.50.0
+grpcio-tools>=1.50.0
+protobuf>=4.21.0
+
+# Azure Pronunciation Assessment API (fallback)
+azure-cognitiveservices-speech>=1.25.0
+
+# AWS SDK for S3/DynamoDB integration
+boto3>=1.28.0
+
+# Utilities
+numpy>=1.24.0
+pandas>=2.0.0
+pydub>=0.25.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.3.0
+
+# Logging and monitoring
+prometheus-client>=0.17.0

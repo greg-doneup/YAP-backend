@@ -23,6 +23,9 @@ service VoiceScore {
   
   // Get a specific daily completion for a wallet and date
   rpc GetDailyCompletion(GetDailyCompletionRequest) returns (DailyCompletion);
+  
+  // Evaluate with detailed phoneme-level information
+  rpc EvaluateDetailed(EvaluateDetailedRequest) returns (EvaluateDetailedResponse);
 }
 
 message EvaluateRequest {
@@ -32,6 +35,38 @@ message EvaluateRequest {
 
 message EvaluateResponse {
   float score = 1;
+}
+
+message EvaluateDetailedRequest {
+  bytes audio = 1;
+  string expected_phrase = 2;
+  string language_code = 3;
+  string detail_level = 4;  // "word", "phoneme", or "sentence"
+}
+
+message WordDetail {
+  string word = 1;
+  float start_time = 2;       // In seconds
+  float end_time = 3;         // In seconds
+  float score = 4;            // 0-100 pronunciation score
+  repeated string issues = 5; // Description of pronunciation issues
+}
+
+message PhonemeDetail {
+  string phoneme = 1;
+  string word = 2;            // The word this phoneme belongs to
+  float start_time = 3;       // In seconds
+  float end_time = 4;         // In seconds
+  float score = 5;            // 0-100 pronunciation score
+  string issue = 6;           // Description of pronunciation issue
+}
+
+message EvaluateDetailedResponse {
+  float overall_score = 1;
+  bool pass = 2;
+  repeated WordDetail words = 3;
+  repeated PhonemeDetail phonemes = 4;
+  repeated string feedback = 5;
 }
 
 message GetVocabRequest {}

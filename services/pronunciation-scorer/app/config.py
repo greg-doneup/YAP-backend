@@ -1,5 +1,5 @@
 """
-Configuration module for alignment service.
+Configuration module for pronunciation scorer service.
 
 This module manages configuration settings from environment variables
 and provides default values for development environments.
@@ -10,24 +10,29 @@ from typing import Dict, Any
 
 class Config:
     """
-    Configuration class for the alignment service.
+    Configuration class for the pronunciation scorer service.
     """
     
     # Server configuration
-    GRPC_PORT = int(os.environ.get('GRPC_PORT', '50051'))
-    METRICS_PORT = int(os.environ.get('METRICS_PORT', '8000'))
+    GRPC_PORT = int(os.environ.get('GRPC_PORT', '50052'))
+    METRICS_PORT = int(os.environ.get('METRICS_PORT', '8001'))
     
     # AWS configuration
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'yap-alignment-results')
+    S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'yap-pronunciation-scores')
+    
+    # Scoring configuration
+    PRONUNCIATION_THRESHOLD_EXCELLENT = float(os.environ.get('PRONUNCIATION_THRESHOLD_EXCELLENT', '90.0'))
+    PRONUNCIATION_THRESHOLD_GOOD = float(os.environ.get('PRONUNCIATION_THRESHOLD_GOOD', '75.0'))
+    PRONUNCIATION_THRESHOLD_FAIR = float(os.environ.get('PRONUNCIATION_THRESHOLD_FAIR', '60.0'))
+    
+    # Provider configuration
+    USE_GOP = os.environ.get('USE_GOP', 'True').lower() in ('true', '1', 't')
+    USE_AZURE_FALLBACK = os.environ.get('USE_AZURE_FALLBACK', 'False').lower() in ('true', '1', 't')
     
     # Cache configuration
     CACHE_MAX_SIZE = int(os.environ.get('CACHE_MAX_SIZE', '1000'))
     CACHE_TTL_SECONDS = int(os.environ.get('CACHE_TTL_SECONDS', '3600'))
-    
-    # Model configuration
-    DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'large-v2')
-    GPU_ENABLED = os.environ.get('GPU_ENABLED', 'True').lower() in ('true', '1', 't')
     
     # Storage configuration
     STORAGE_ENABLED = os.environ.get('STORAGE_ENABLED', 'False').lower() in ('true', '1', 't')
@@ -37,7 +42,11 @@ class Config:
     MONGODB_DB_NAME = os.environ.get('MONGO_DB_NAME', 'yap')
     MONGODB_ENABLED = os.environ.get('MONGODB_ENABLED', 'False').lower() in ('true', '1', 't')
     
-    # Language models
+    # Azure configuration (for fallback)
+    AZURE_SPEECH_KEY = os.environ.get('AZURE_SPEECH_KEY', '')
+    AZURE_SERVICE_REGION = os.environ.get('AZURE_SERVICE_REGION', 'eastus')
+    
+    # Language configurations
     SUPPORTED_LANGUAGES = {
         'en': 'English',
         'es': 'Spanish',
@@ -51,6 +60,9 @@ class Config:
         'pt': 'Portuguese',
         'hi': 'Hindi'
     }
+    
+    # Phoneme lexicon paths
+    PHONEME_LEXICON_DIR = os.environ.get('PHONEME_LEXICON_DIR', '/app/lexicons')
     
     @classmethod
     def as_dict(cls) -> Dict[str, Any]:

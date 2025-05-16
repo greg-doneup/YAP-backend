@@ -106,6 +106,85 @@ export async function getCompletionsByDate(userId: string, date: string): Promis
     .toArray();
 }
 
+// Detailed pronunciation attempts
+export async function getDetailedPronunciationAttempts(userId: string, limit: number = 10): Promise<LessonCompletion[]> {
+  const db = await connect();
+  return await db.collection("lesson_completions")
+    .find({ 
+      userId, 
+      wordDetails: { $exists: true, $ne: null } 
+    })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .toArray();
+}
+
+export async function getDetailedPronunciationByWord(userId: string, wordId: string): Promise<LessonCompletion[]> {
+  const db = await connect();
+  return await db.collection("lesson_completions")
+    .find({ 
+      userId, 
+      wordId,
+      wordDetails: { $exists: true, $ne: null } 
+    })
+    .sort({ timestamp: -1 })
+    .toArray();
+}
+
+export async function getPronunciationProgress(userId: string, fromDate: string, toDate: string): Promise<any> {
+  const db = await connect();
+  const pipeline = [
+    { 
+      $match: { 
+        userId,
+        date: { $gte: fromDate, $lte: toDate },
+        pronunciationScore: { $exists: true }
+      } 
+    },
+    { 
+      $group: {
+        _id: "$date",
+        averageScore: { $avg: "$pronunciationScore" },
+        attempts: { $sum: 1 }
+      } 
+    },
+    { $sort: { _id: 1 } }
+  ];
+  
+  return await db.collection("lesson_completions").aggregate(pipeline).toArray();
+}
+
+export async function storeTTSAudio(wordId: string, language: string, audioData: Buffer): Promise<string> {
+  const db = await connect();
+  const audioCollection = db.collection('tts_audio');
+  
+  // Check if we already have this word/language combination
+  const existing = await audioCollection.findOne({ wordId, language });
+  if (existing) {
+    return existing._id.toString();
+  }
+  
+  // Store new TTS audio
+  const result = await audioCollection.insertOne({
+    wordId,
+    language,
+    audioData: audioData.toString('base64'),
+    createdAt: new Date()
+  });
+  
+  return result.insertedId.toString();
+}
+
+export async function getTTSAudio(wordId: string, language: string): Promise<Buffer | null> {
+  const db = await connect();
+  const audioCollection = db.collection('tts_audio');
+  
+  const record = await audioCollection.findOne({ wordId, language });
+  if (!record) return null;
+  
+  return Buffer.from(record.audioData, 'base64');
+}
+
 // Close the MongoDB connection (for graceful shutdown)
 export async function closeConnection() {
   await client.close();

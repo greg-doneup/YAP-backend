@@ -48,6 +48,34 @@ class TestTTSProvider(unittest.TestCase):
             provider = TTSProviderFactory.get_provider()
             self.assertIsInstance(provider, MozillaTTSProvider)
     
+    def test_fallback_provider_factory(self):
+        """
+        Test that the TTSProviderFactory returns the correct fallback provider.
+        """
+        with patch('app.tts_provider.Config') as mock_config:
+            # Test AWS Polly as fallback
+            mock_config.USE_FALLBACK_PROVIDER = True
+            mock_config.FALLBACK_TTS_PROVIDER = "aws"
+            mock_config.USE_AWS_POLLY = True
+            provider = TTSProviderFactory.get_provider(fallback=True)
+            self.assertIsInstance(provider, AWSPollyProvider)
+            
+            # Test Azure as fallback
+            mock_config.USE_FALLBACK_PROVIDER = True
+            mock_config.FALLBACK_TTS_PROVIDER = "azure"
+            mock_config.USE_AZURE_TTS = True
+            provider = TTSProviderFactory.get_provider(fallback=True)
+            self.assertIsInstance(provider, AzureTTSProvider)
+            
+            # Test fallback disabled
+            mock_config.USE_FALLBACK_PROVIDER = False
+            mock_config.FALLBACK_TTS_PROVIDER = "aws"
+            mock_config.USE_AWS_POLLY = True
+            mock_config.TTS_PROVIDER = "azure"
+            mock_config.USE_AZURE_TTS = True
+            provider = TTSProviderFactory.get_provider(fallback=True)
+            self.assertIsInstance(provider, AzureTTSProvider)
+    
     def test_normalize_language_code(self):
         """
         Test language code normalization.

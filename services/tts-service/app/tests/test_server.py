@@ -22,6 +22,7 @@ class TestTTSService(unittest.TestCase):
         """
         # Mock provider and cache
         self.mock_provider = MagicMock()
+        self.mock_fallback_provider = MagicMock()
         self.mock_cache = MagicMock()
         self.mock_storage = MagicMock()
         
@@ -31,6 +32,7 @@ class TestTTSService(unittest.TestCase):
         
         # Replace service dependencies with mocks
         self.service_instance.provider = self.mock_provider
+        self.service_instance.fallback_provider = self.mock_fallback_provider
         self.service_instance.cache = self.mock_cache
         self.service_instance.storage = self.mock_storage
         
@@ -136,6 +138,85 @@ class TestTTSService(unittest.TestCase):
         self.mock_cache.get.assert_called_once_with('test_cache_key')
         self.mock_provider.synthesize_speech.assert_called_once()
         self.mock_cache.put.assert_called_once()
+        
+    def test_generate_speech_fallback_provider(self):
+        """
+        Test speech generation with primary provider failure and fallback success.
+        """
+        # Set up mock cache to return a miss
+        self.mock_cache.generate_key.return_value = 'test_cache_key'
+        self.mock_cache.get.return_value = None
+        
+        # Set up mock primary provider to fail
+        self.mock_provider.synthesize_speech.side_effect = Exception("Primary provider failure")
+        
+        # Set up mock fallback provider
+        fallback_result = {
+            'audio_data': b'fallback_audio',
+            'audio_format': 'mp3',
+            'duration': 2.5
+        }
+        self.mock_fallback_provider.synthesize_speech.return_value = fallback_result
+        
+        # Create request
+        request = tts_pb2.TTSRequest(
+            text="Hello world",
+            language_code="en-US",
+            audio_format="mp3",
+            speaking_rate=1.0,
+            pitch=0.0
+        )
+        
+        # Make request
+        response = self.client.GenerateSpeech(request)
+        
+        # Verify response
+        self.assertTrue(response.success)
+        self.assertEqual(response.message, "TTS generation successful using fallback provider")
+        self.assertEqual(response.audio_data, b'fallback_audio')
+        self.assertEqual(response.audio_format, 'mp3')
+        self.assertEqual(response.duration, 2.5)
+        
+        # Verify interactions
+        self.mock_cache.get.assert_called_once_with('test_cache_key')
+        self.mock_provider.synthesize_speech.assert_called_once()
+        self.mock_fallback_provider.synthesize_speech.assert_called_once()
+        self.mock_cache.put.assert_called_once()
+        
+    def test_generate_speech_both_providers_fail(self):
+        """
+        Test speech generation with both primary and fallback providers failing.
+        """
+        # Set up mock cache to return a miss
+        self.mock_cache.generate_key.return_value = 'test_cache_key'
+        self.mock_cache.get.return_value = None
+        
+        # Set up both providers to fail
+        self.mock_provider.synthesize_speech.side_effect = Exception("Primary provider failure")
+        self.mock_fallback_provider.synthesize_speech.side_effect = Exception("Fallback provider failure")
+        
+        # Create request
+        request = tts_pb2.TTSRequest(
+            text="Hello world",
+            language_code="en-US",
+            audio_format="mp3",
+            speaking_rate=1.0,
+            pitch=0.0
+        )
+        
+        # Make request
+        with self.assertRaises(grpc.RpcError) as context:
+            self.client.GenerateSpeech(request)
+        
+        # Verify error status
+        self.assertEqual(context.exception.code(), grpc.StatusCode.INTERNAL)
+        self.assertIn("Both primary and fallback TTS providers failed", context.exception.details())
+        
+        # Verify interactions
+        self.mock_cache.get.assert_called_once_with('test_cache_key')
+        self.mock_provider.synthesize_speech.assert_called_once()
+        self.mock_fallback_provider.synthesize_speech.assert_called_once()
+        self.mock_cache.put.assert_not_called()
     
     def test_generate_phoneme_audio(self):
         """

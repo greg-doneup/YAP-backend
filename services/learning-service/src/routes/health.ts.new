@@ -1,0 +1,146 @@
+import express from "express";
+import { MongoClient } from "mongodb";
+import { checkHealth as checkTTSHealth } from "../clients/tts";
+import { checkHealth as checkAlignmentHealth } from "../clients/alignment";
+import { checkHealth as checkPronunciationScorerHealth } from "../clients/pronunciation-scorer";
+
+const router = express.Router();
+
+// For MongoDB health check
+const MONGODB_URI = process.env.MONGO_URI || "mongodb://localhost:27017";
+const DB_NAME = process.env.MONGO_DB_NAME || "yap";
+
+/**
+ * GET /health
+ * Basic health check endpoint
+ */
+router.get("/", (req, res) => {
+  res.json({ status: "ok", message: "Learning service is running" });
+});
+
+/**
+ * GET /health/deep
+ * Deep health check that tests all connected services
+ */
+router.get("/deep", async (req, res) => {
+  try {
+    // Create a test audio buffer for health checks
+    const testAudioBuffer = Buffer.from("test");
+    
+    // Check MongoDB connection
+    let mongoStatus = "ok";
+    let mongoMessage = "Connected to MongoDB";
+    try {
+      // Create temporary client just for health check
+      const client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      const db = client.db(DB_NAME);
+      await db.command({ ping: 1 });
+      await client.close();
+    } catch (error: any) {
+      mongoStatus = "error";
+      mongoMessage = `MongoDB connection failed: ${error.message || 'Unknown error'}`;
+    }
+
+    // Check TTS service
+    let ttsStatus = "ok";
+    let ttsMessage = "TTS service is healthy";
+    try {
+      const ttsHealth = await checkTTSHealth();
+      if (!ttsHealth.status) {
+        ttsStatus = "error";
+        ttsMessage = ttsHealth.message;
+      }
+    } catch (error: any) {
+      ttsStatus = "error";
+      ttsMessage = `TTS service check failed: ${error.message || 'Unknown error'}`;
+    }
+
+    // Check Alignment service
+    let alignmentStatus = "ok";
+    let alignmentMessage = "Alignment service is healthy";
+    try {
+      const alignmentHealth = await checkAlignmentHealth();
+      if (!alignmentHealth.status) {
+        alignmentStatus = "error";
+        alignmentMessage = alignmentHealth.message;
+      }
+    } catch (error: any) {
+      alignmentStatus = "error";
+      alignmentMessage = `Alignment service check failed: ${error.message || 'Unknown error'}`;
+    }
+
+    // Check Pronunciation Scorer service
+    let scorerStatus = "ok";
+    let scorerMessage = "Pronunciation scorer is healthy";
+    try {
+      const scorerHealth = await checkPronunciationScorerHealth();
+      if (!scorerHealth.status) {
+        scorerStatus = "error";
+        scorerMessage = scorerHealth.message;
+      }
+    } catch (error: any) {
+      scorerStatus = "error";
+      scorerMessage = `Pronunciation scorer check failed: ${error.message || 'Unknown error'}`;
+    }
+
+    // Calculate overall status
+    const allStatuses = [mongoStatus, ttsStatus, alignmentStatus, scorerStatus];
+    const overallStatus = allStatuses.includes("error") ? "degraded" : "ok";
+
+    // Return comprehensive health status
+    res.json({
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      services: {
+        mongodb: {
+          status: mongoStatus,
+          message: mongoMessage
+        },
+        tts: {
+          status: ttsStatus,
+          message: ttsMessage
+        },
+        alignment: {
+          status: alignmentStatus,
+          message: alignmentMessage
+        },
+        pronunciation_scorer: {
+          status: scorerStatus,
+          message: scorerMessage
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error("Health check error:", error);
+    res.status(500).json({
+      status: "error",
+      message: `Health check encountered an error: ${error.message || 'Unknown error'}`
+    });
+  }
+});
+
+/**
+ * GET /health/mongo
+ * MongoDB specific health check
+ */
+router.get("/mongo", async (req, res) => {
+  try {
+    // Create temporary client just for health check
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    const db = client.db(DB_NAME);
+    await db.command({ ping: 1 });
+    await client.close();
+    
+    res.json({ status: "ok", message: "MongoDB connection successful" });
+  } catch (error: any) {
+    console.error("MongoDB health check error:", error);
+    res.status(500).json({
+      status: "error",
+      message: `MongoDB connection failed: ${error.message || 'Unknown error'}`
+    });
+  }
+});
+
+export default router;

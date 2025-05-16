@@ -30,7 +30,17 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
     
     def __init__(self):
         logger.info("Initializing TTSService")
+        # Initialize primary provider
         self.provider = TTSProviderFactory.get_provider()
+        logger.info(f"Primary TTS provider: {type(self.provider).__name__}")
+        
+        # Initialize fallback provider if configured
+        self.fallback_provider = None
+        if Config.USE_FALLBACK_PROVIDER:
+            self.fallback_provider = TTSProviderFactory.get_provider(fallback=True)
+            if self.fallback_provider:
+                logger.info(f"Fallback TTS provider: {type(self.fallback_provider).__name__}")
+        
         self.cache = get_cache()
         self.storage = get_storage()
         self.language_detector = get_language_detector()
@@ -114,7 +124,7 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
             # Check if SSML is provided
             ssml = request.ssml if hasattr(request, 'ssml') and request.ssml else None
             
-            # Call the provider to generate speech
+            # Call the primary provider to generate speech
             try:
                 result = self.provider.synthesize_speech(
                     text=request.text,
@@ -158,16 +168,74 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
                 
                 return response
                 
-            except Exception as e:
-                logger.error(f"Provider error: {str(e)}")
-                # End benchmark with failure
-                self.benchmarker.end_benchmark(success=False)
-                context.set_code(grpc.StatusCode.INTERNAL)
-                context.set_details(f"TTS provider error: {str(e)}")
-                return tts_pb2.TTSResponse(
-                    success=False,
-                    message=f"TTS provider error: {str(e)}"
-                )
+            except Exception as primary_error:
+                logger.error(f"Primary provider error: {str(primary_error)}")
+                
+                # Try fallback provider if configured
+                if self.fallback_provider and Config.USE_FALLBACK_PROVIDER:
+                    logger.info(f"Attempting to use fallback provider")
+                    try:
+                        result = self.fallback_provider.synthesize_speech(
+                            text=request.text,
+                            language_code=request.language_code,
+                            voice_id=request.voice_id if request.voice_id else None,
+                            audio_format=request.audio_format,
+                            speaking_rate=request.speaking_rate,
+                            pitch=request.pitch,
+                            ssml=ssml
+                        )
+                        
+                        # Store the audio data
+                        if Config.STORAGE_ENABLED:
+                            s3_url = self.storage.store(
+                                audio_data=result['audio_data'],
+                                key=cache_key,
+                                audio_format=result['audio_format']
+                            )
+                            if s3_url:
+                                result['s3_url'] = s3_url
+                        
+                        # Cache the result
+                        self.cache.put(cache_key, result)
+                        
+                        # Create response
+                        response = tts_pb2.TTSResponse(
+                            success=True,
+                            message="TTS generation successful using fallback provider",
+                            audio_data=result['audio_data'],
+                            audio_format=result['audio_format'],
+                            duration=result['duration'],
+                            cache_key=cache_key
+                        )
+                        
+                        # End benchmark
+                        self.benchmarker.end_benchmark(
+                            success=True, 
+                            audio_duration=result.get('duration', 0.0),
+                            audio_size_bytes=len(result['audio_data'])
+                        )
+                        
+                        return response
+                    
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback provider error: {str(fallback_error)}")
+                        # Both providers failed, return failure
+                        self.benchmarker.end_benchmark(success=False)
+                        context.set_code(grpc.StatusCode.INTERNAL)
+                        context.set_details(f"Both primary and fallback TTS providers failed: {str(primary_error)}; {str(fallback_error)}")
+                        return tts_pb2.TTSResponse(
+                            success=False,
+                            message=f"TTS generation failed with both providers: {str(primary_error)}; {str(fallback_error)}"
+                        )
+                else:
+                    # No fallback provider available
+                    self.benchmarker.end_benchmark(success=False)
+                    context.set_code(grpc.StatusCode.INTERNAL)
+                    context.set_details(f"TTS provider error: {str(primary_error)}")
+                    return tts_pb2.TTSResponse(
+                        success=False,
+                        message=f"TTS provider error: {str(primary_error)}"
+                    )
             
         except Exception as e:
             logger.error(f"Error in GenerateSpeech: {str(e)}")
@@ -248,6 +316,32 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
                     )
                     if s3_url:
                         result['s3_url'] = s3_url
+            except Exception as primary_error:
+                logger.error(f"Primary provider phoneme error: {str(primary_error)}")
+                
+                # Try fallback provider if configured
+                if self.fallback_provider and Config.USE_FALLBACK_PROVIDER:
+                    logger.info(f"Attempting to use fallback provider for phoneme")
+                    result = self.fallback_provider.synthesize_phoneme(
+                        phoneme=request.phoneme,
+                        word=request.word,
+                        language_code=request.language_code,
+                        voice_id=request.voice_id if request.voice_id else None,
+                        audio_format=request.audio_format
+                    )
+                    
+                    # Store the audio data
+                    if Config.STORAGE_ENABLED:
+                        s3_url = self.storage.store(
+                            audio_data=result['audio_data'],
+                            key=cache_key,
+                            audio_format=result['audio_format']
+                        )
+                        if s3_url:
+                            result['s3_url'] = s3_url
+                else:
+                    # Re-raise the original error if no fallback available
+                    raise primary_error
                 
                 # Cache the result
                 self.cache.put(cache_key, result)

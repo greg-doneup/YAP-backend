@@ -26,7 +26,23 @@ spec:
             - name: METRICS_PORT
               value: "8002"
             - name: TTS_PROVIDER
-              value: "mozilla"  # Can be: mozilla, aws, azure, google
+              value: "azure"  # Primary provider: azure
+            - name: USE_AZURE_TTS
+              value: "true"
+            - name: AZURE_SPEECH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: azure-credentials
+                  key: speech_key
+                  optional: false
+            - name: AZURE_SERVICE_REGION
+              value: "eastus"
+            - name: USE_FALLBACK_PROVIDER
+              value: "true"
+            - name: FALLBACK_TTS_PROVIDER
+              value: "aws"  # Fallback provider: aws
+            - name: USE_AWS_POLLY
+              value: "true"
             - name: AWS_REGION
               value: "us-east-1"
             - name: S3_BUCKET_NAME

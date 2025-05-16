@@ -1280,13 +1280,22 @@ class TTSProviderFactory:
     """
     
     @staticmethod
-    def get_provider() -> TTSProvider:
+    def get_provider(fallback: bool = False) -> TTSProvider:
         """
         Get the appropriate TTS provider based on configuration.
         
+        Args:
+            fallback: Whether to get the fallback provider instead of primary
+            
         Returns:
             TTSProvider: A TTS provider instance
         """
+        # For fallback, always use AWS Polly if configured
+        if fallback and Config.USE_FALLBACK_PROVIDER and Config.FALLBACK_TTS_PROVIDER == "aws" and Config.USE_AWS_POLLY:
+            logger.info("Using AWS Polly as fallback TTS provider")
+            return AWSPollyProvider()
+            
+        # Primary provider selection
         provider_type = Config.TTS_PROVIDER.lower()
         
         if provider_type == "aws" and Config.USE_AWS_POLLY:

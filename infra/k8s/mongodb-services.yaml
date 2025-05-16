@@ -1,0 +1,187 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tts-service
+  labels:
+    app: tts-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tts-service
+  template:
+    metadata:
+      labels:
+        app: tts-service
+    spec:
+      containers:
+      - name: tts-service
+        image: yap/tts-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50053
+          name: grpc
+        - containerPort: 8002
+          name: metrics
+        env:
+        - name: GRPC_PORT
+          value: "50053"
+        - name: METRICS_PORT
+          value: "8002"
+        - name: TTS_PROVIDER
+          value: "mozilla"
+        - name: CACHE_MAX_SIZE
+          value: "1000"
+        - name: CACHE_TTL_SECONDS
+          value: "86400"
+        - name: STORAGE_ENABLED
+          value: "true"
+        # Enable MongoDB and disable AWS DynamoDB/S3
+        - name: MONGODB_ENABLED
+          value: "true"
+        - name: USE_AWS_POLLY
+          value: "false"
+        # Add MongoDB connection details from secrets
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_URI
+        - name: MONGO_DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_DB_NAME
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alignment-service
+  labels:
+    app: alignment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alignment-service
+  template:
+    metadata:
+      labels:
+        app: alignment-service
+    spec:
+      containers:
+      - name: alignment-service
+        image: yap/alignment-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 8000
+          name: metrics
+        env:
+        - name: GRPC_PORT
+          value: "50051"
+        - name: METRICS_PORT
+          value: "8000"
+        - name: DEFAULT_MODEL
+          value: "large-v2"
+        - name: GPU_ENABLED
+          value: "true"
+        - name: CACHE_MAX_SIZE
+          value: "1000"
+        - name: CACHE_TTL_SECONDS
+          value: "3600"
+        # Enable MongoDB storage
+        - name: MONGODB_ENABLED
+          value: "true"
+        # Disable AWS S3 storage
+        - name: STORAGE_ENABLED
+          value: "false"
+        # Add MongoDB connection details from secrets
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_URI
+        - name: MONGO_DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_DB_NAME
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pronunciation-scorer
+  labels:
+    app: pronunciation-scorer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pronunciation-scorer
+  template:
+    metadata:
+      labels:
+        app: pronunciation-scorer
+    spec:
+      containers:
+      - name: pronunciation-scorer
+        image: yap/pronunciation-scorer:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50052
+          name: grpc
+        - containerPort: 8001
+          name: metrics
+        env:
+        - name: GRPC_PORT
+          value: "50052"
+        - name: METRICS_PORT
+          value: "8001"
+        - name: USE_GOP
+          value: "true"
+        - name: USE_AZURE_FALLBACK
+          value: "false"
+        - name: CACHE_MAX_SIZE
+          value: "1000"
+        - name: CACHE_TTL_SECONDS
+          value: "3600"
+        # Enable MongoDB storage
+        - name: MONGODB_ENABLED
+          value: "true"
+        # Disable AWS S3/DynamoDB storage
+        - name: STORAGE_ENABLED
+          value: "false"
+        # Add MongoDB connection details from secrets
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_URI
+        - name: MONGO_DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_DB_NAME
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"

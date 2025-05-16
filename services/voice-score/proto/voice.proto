@@ -4,6 +4,73 @@ package voicescore;
 
 service VoiceScore {
   rpc Evaluate (EvalRequest) returns (EvalResponse);
+  rpc EvaluateDetailed (DetailedEvalRequest) returns (DetailedEvalResponse);
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message EvalRequest {
+  bytes  audio            = 1;   // RAW PCM 16-bit little-endian 16 kHz mono
+  string expected_phrase  = 2;   // target text ("hola")
+}
+
+message EvalResponse {
+  string transcript = 1;   // STT result
+  double score      = 2;   // 0-1 cosine similarity
+  bool   pass       = 3;   // true when score ≥ 0.8
+}
+
+// New detailed request for three-stage pipeline processing
+message DetailedEvalRequest {
+  bytes  audio            = 1;   // RAW PCM 16-bit little-endian 16 kHz mono
+  string expected_phrase  = 2;   // target text ("hola")
+  string language_code    = 3;   // Language code (e.g., "en-US", "es-ES")
+  string audio_format     = 4;   // Format of the audio (e.g., "wav", "mp3")
+  string detail_level     = 5;   // "word", "phoneme", or "sentence"
+}
+
+// Word-level alignment and scoring
+message WordDetail {
+  string word             = 1;   // The word
+  float  start_time       = 2;   // In seconds
+  float  end_time         = 3;   // In seconds
+  float  score            = 4;   // 0-100 pronunciation score
+  repeated string issues  = 5;   // Description of pronunciation issues
+}
+
+// Phoneme-level alignment and scoring
+message PhonemeDetail {
+  string phoneme          = 1;   // The phoneme
+  string word             = 2;   // The word this phoneme belongs to
+  float  start_time       = 3;   // In seconds
+  float  end_time         = 4;   // In seconds
+  float  score            = 5;   // 0-100 pronunciation score
+  string issue            = 6;   // Description of pronunciation issue
+}
+
+// Detailed response with phoneme-level information
+message DetailedEvalResponse {
+  string transcript       = 1;   // STT result
+  double overall_score    = 2;   // 0-100 overall pronunciation score
+  bool   pass             = 3;   // true when score ≥ threshold
+  repeated WordDetail words = 4; // Word-level details
+  repeated PhonemeDetail phonemes = 5; // Phoneme-level details
+  repeated string feedback = 6;  // General feedback on pronunciation
+  string evaluation_id    = 7;   // Unique identifier for this evaluation
+  string alignment_id     = 8;   // Reference to alignment service result
+  string scoring_id       = 9;   // Reference to scoring service result
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;              // true if service is healthy
+  string message = 2;           // Description of health status
+}
+
+package voicescore;
+
+service VoiceScore {
+  rpc Evaluate (EvalRequest) returns (EvalResponse);
 }
 
 message EvalRequest {

@@ -1,6 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: tts-service }
+metadata: 
+  name: tts-service
+  labels:
+    app: tts-service
+    service: tts-service
 spec:
   replicas: 2
   selector: { matchLabels: { app: tts-service } }
@@ -11,17 +15,110 @@ spec:
         - name: tts-service
           image: tts-service  # For local development with Skaffold
           imagePullPolicy: IfNotPresent
-          ports: [{ containerPort: 50053, name: grpc }]
+          ports: 
+            - containerPort: 50053
+              name: grpc
+            - containerPort: 8002
+              name: metrics
+          env:
+            - name: GRPC_PORT
+              value: "50053"
+            - name: METRICS_PORT
+              value: "8002"
+            - name: TTS_PROVIDER
+              value: "mozilla"  # Can be: mozilla, aws, azure, google
+            - name: AWS_REGION
+              value: "us-east-1"
+            - name: S3_BUCKET_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: yap-config
+                  key: tts_s3_bucket
+                  optional: true
+            - name: USE_ALIGNMENT_SERVICE
+              value: "true"
+            - name: ALIGNMENT_SERVICE_HOST
+              value: "alignment-service"
+            - name: ALIGNMENT_SERVICE_PORT
+              value: "50051"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: access_key
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: secret_key
+                  optional: true
           resources:
             requests: { cpu: "500m", memory: "1Gi" }
-            limits:   { cpu: "1",    memory: "2Gi" }
+            limits:   { cpu: "1.5",  memory: "3Gi" }
+          readinessProbe:
+            exec:
+              command: ["/bin/grpc_health_probe", "-addr=:50053"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["/bin/grpc_health_probe", "-addr=:50053"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          volumeMounts:
+            - name: tts-storage
+              mountPath: /app/models
+              readOnly: false
+      volumes:
+        - name: tts-storage
+          persistentVolumeClaim:
+            claimName: tts-storage-pvc
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: tts-service }
+metadata: 
+  name: tts-service
+  labels:
+    app: tts-service
+    service: tts-service
 spec:
   selector: { app: tts-service }
   ports:
     - port: 50053
       targetPort: 50053
       name: grpc
+    - port: 8002
+      targetPort: 8002
+      name: metrics
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tts-storage-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp2
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tts-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tts-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -82,8 +82,8 @@ Additionally, we'll implement robust TTS capabilities to support the multiple la
 - [ ] Implement metrics for observability (Prometheus)
 
 ### Storage Integration
-- [ ] Implement S3 integration for storing alignment results
-- [ ] Create caching mechanism for frequent alignments
+- [x] Implement MongoDB GridFS for storing alignment results (replaces S3 integration)
+- [x] Create MongoDB-based caching mechanism for frequent alignments
 - [ ] Add memory management for large audio files
 
 ### Testing & Documentation
@@ -151,9 +151,9 @@ Additionally, we'll implement robust TTS capabilities to support the multiple la
 - [ ] Implement phoneme-to-speech mapping for pronunciation examples
 
 ### Storage Integration
-- [ ] Implement S3 integration for storing generated audio
-- [ ] Create DynamoDB integration for caching common phrases
-- [ ] Add TTL-based expiration for cached audio
+- [x] Implement MongoDB GridFS for storing generated audio (replaces S3 integration)
+- [x] Create MongoDB collections for caching common phrases (replaces DynamoDB)
+- [x] Add TTL-based expiration for cached audio
 
 ### API & Integration
 - [ ] Create TTS request/response handlers
@@ -170,25 +170,48 @@ Additionally, we'll implement robust TTS capabilities to support the multiple la
 ## Phase 5: Voice-Score Service Refactoring (2 weeks)
 
 ### Proto Definition Updates
-- [ ] Update `voice.proto` to include phoneme-level information
-- [ ] Add alignment results to response structure
-- [ ] Update service interface definitions
+- [x] Update `voice.proto` to include phoneme-level information
+- [x] Add alignment results to response structure
+- [x] Update service interface definitions
 
 ### Core Functionality Updates
-- [ ] Refactor existing scoring logic to be optional/fallback
-- [ ] Implement integration with alignment service
-- [ ] Implement integration with pronunciation scorer service
-- [ ] Update transcription logic to return more detailed information
+- [x] Refactor existing scoring logic to be optional/fallback
+- [x] Implement integration with alignment service
+- [x] Implement integration with pronunciation scorer service
+- [x] Update transcription logic to return more detailed information
 
-### Performance Optimization
-- [ ] Implement caching for common words and phrases
-- [ ] Optimize model loading and initialization
-- [ ] Add resource usage monitoring and throttling
+### Storage and Performance Optimization
+- [x] Implement MongoDB storage for all services as a replacement for DynamoDB/S3
+  - [x] Create MongoDB client implementations with connection pooling
+  - [x] Implement MongoDB cache with TTL support for all services
+  - [x] Implement GridFS for audio file storage
+- [x] Update factory methods to use MongoDB when enabled
+- [x] Create Kubernetes configurations for MongoDB-enabled services
+- [x] Create comprehensive documentation on the MongoDB migration
+- [x] Optimize model loading and initialization
+  - [x] Create model manager for alignment service with lazy loading
+  - [x] Create model manager for pronunciation scorer service
+  - [x] Implement memory management for large models
+  - [x] Add GPU/CPU fallback mechanisms
+- [x] Add resource usage monitoring and throttling
+  - [x] Implement resource monitor with CPU/memory tracking
+  - [x] Add adaptive concurrency limits
+  - [x] Implement circuit breaker pattern for overload protection
+  - [x] Add request rate tracking and throttling
 
 ### Testing & Documentation
-- [ ] Update existing tests for new functionality
-- [ ] Create integration tests with the new services
-- [ ] Update API documentation
+- [x] Update existing tests for new functionality
+  - [x] Create unit tests for voice-score service
+  - [x] Add test configuration and automation scripts
+  - [x] Implement mock testing for service dependencies
+- [x] Create integration tests with the new services
+  - [x] Implement end-to-end test pipeline
+  - [x] Add tests for alignment service direct access
+  - [x] Add tests for pronunciation scorer direct access
+  - [x] Create offline testing with mock services
+- [x] Create documentation for MongoDB migration (`docs/mongodb-migration.md`)
+- [x] Create MongoDB deployment guide (`docs/mongodb-deployment-guide.md`)
+- [x] Update API documentation
 
 ## Phase 6: Learning Service Integration (3 weeks)
 

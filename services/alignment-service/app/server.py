@@ -20,6 +20,10 @@ from app.cache import AlignmentCache
 from app.storage import S3Storage
 from app.config import Config
 
+# Import MongoDB storage if enabled
+if Config.MONGODB_ENABLED:
+    from app.mongodb_storage import MongoDBStorage, MongoDBCache
+
 # Set up metrics
 REQUEST_TIME = Summary('alignment_request_processing_seconds', 'Time spent processing alignment requests')
 REQUEST_COUNT = Counter('alignment_requests_total', 'Total number of alignment requests', ['language', 'success'])
@@ -35,17 +39,25 @@ class AlignmentService(alignment_pb2_grpc.AlignmentServiceServicer):
         # Initialize the alignment engine
         self.engine = AlignmentEngine()
         
-        # Initialize cache with config values
-        self.cache = AlignmentCache(
-            max_size=Config.CACHE_MAX_SIZE,
-            ttl=Config.CACHE_TTL_SECONDS
-        )
-        
-        # Initialize S3 storage if enabled
+        # Initialize storage and cache based on configuration
         self.storage = None
-        if Config.STORAGE_ENABLED and os.environ.get('AWS_ACCESS_KEY_ID') and os.environ.get('AWS_SECRET_ACCESS_KEY'):
-            logger.info("Initializing S3 storage")
-            self.storage = S3Storage()
+        
+        # Use MongoDB if enabled
+        if Config.MONGODB_ENABLED:
+            logger.info("Initializing MongoDB storage")
+            self.storage = MongoDBStorage()
+            self.cache = MongoDBCache(ttl_seconds=Config.CACHE_TTL_SECONDS)
+        else:
+            # Otherwise use S3 storage if enabled
+            if Config.STORAGE_ENABLED and os.environ.get('AWS_ACCESS_KEY_ID') and os.environ.get('AWS_SECRET_ACCESS_KEY'):
+                logger.info("Initializing S3 storage")
+                self.storage = S3Storage()
+            
+            # Use in-memory cache
+            self.cache = AlignmentCache(
+                max_size=Config.CACHE_MAX_SIZE,
+                ttl=Config.CACHE_TTL_SECONDS
+            )
         
     @REQUEST_TIME.time()
     def AlignText(self, request, context):

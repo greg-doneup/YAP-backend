@@ -46,18 +46,46 @@ export interface UserProgress {
   totalXp: number;              // Total experience points
 }
 
-// Daily completion results
+// Word-level pronunciation details
+export interface WordPronunciationDetail {
+  word: string;
+  start_time: number;
+  end_time: number;
+  score: number;
+  issues: string[];
+}
+
+// Phoneme-level pronunciation details
+export interface PhonemePronunciationDetail {
+  phoneme: string;
+  word: string;
+  start_time: number;
+  end_time: number;
+  score: number;
+  issue: string;
+}
+
+// Daily completion results with detailed pronunciation feedback
 export interface LessonCompletion {
   userId: string;
   lessonId: string;
   wordId: string;
-  date: string;               // YYYY-MM-DD
-  pronunciationScore: number;
-  grammarScore: number;
-  pass: boolean;
-  audioUrl?: string;         // Reference to recorded audio
-  transcript?: string;       // User's transcribed text
-  expected: string;          // Expected text
-  corrected: string;         // Corrected text
-  timestamp: string;         // ISO timestamp
+  date: string;                                // YYYY-MM-DD
+  pronunciationScore: number;                  // Overall pronunciation score
+  grammarScore: number;                        // Grammar score
+  pass: boolean;                               // Whether this attempt passed
+  audioUrl?: string;                           // Reference to recorded audio
+  transcript?: string;                         // User's transcribed text
+  expected: string;                            // Expected text
+  corrected: string;                           // Corrected text
+  timestamp: string;                           // ISO timestamp
+  
+  // Detailed pronunciation feedback
+  alignmentId?: string;                        // ID of the alignment result
+  scoringId?: string;                          // ID of the scoring result
+  evaluationId?: string;                       // ID of the complete evaluation
+  wordDetails?: WordPronunciationDetail[];     // Word-level pronunciation details
+  phonemeDetails?: PhonemePronunciationDetail[]; // Phoneme-level pronunciation details
+  pronunciationFeedback?: string[];            // Text feedback on pronunciation
+  ttsCachedAudio?: string;                     // Reference to TTS generated audio for comparison
 }

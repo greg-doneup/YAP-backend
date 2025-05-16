@@ -22,7 +22,9 @@ class Config:
     S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'yap-tts-audio')
     
     # TTS Provider configuration
-    TTS_PROVIDER = os.environ.get('TTS_PROVIDER', 'mozilla').lower()  # mozilla, aws, azure, google
+    TTS_PROVIDER = os.environ.get('TTS_PROVIDER', 'azure').lower()  # mozilla, aws, azure, google
+    USE_FALLBACK_PROVIDER = os.environ.get('USE_FALLBACK_PROVIDER', 'True').lower() in ('true', '1', 't')
+    FALLBACK_TTS_PROVIDER = os.environ.get('FALLBACK_TTS_PROVIDER', 'aws').lower()  # aws, azure, google, mozilla
     
     # Alignment service configuration
     ALIGNMENT_SERVICE_HOST = os.environ.get('ALIGNMENT_SERVICE_HOST', 'alignment-service')

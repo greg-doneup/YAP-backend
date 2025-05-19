@@ -229,7 +229,12 @@ class MozillaTTSProvider(TTSProvider):
         
         try:
             # Lazy import to avoid loading TTS dependencies until needed
-            from TTS.utils.synthesizer import Synthesizer
+            # Use Coqui TTS instead of mozilla-tts
+            try:
+                from TTS.utils.synthesizer import Synthesizer
+            except ImportError:
+                # Fall back to newer Coqui TTS API if available
+                from TTS.api import TTS
 
             # Normalize language code
             lang_code = self._normalize_language_code(language_code)
@@ -240,22 +245,33 @@ class MozillaTTSProvider(TTSProvider):
                 Config.DEFAULT_VOICES_BY_LANGUAGE.get(lang_code, 'en')
             )
             
-            logger.info(f"Loading Mozilla TTS model from {model_path}")
+            logger.info(f"Loading Coqui TTS model from {model_path}")
             
-            # Initialize the synthesizer
-            self.tts_model = Synthesizer(
-                tts_checkpoint=f"{model_path}/model.pth",
-                tts_config_path=f"{model_path}/config.json",
-                vocoder_checkpoint=f"{model_path}/vocoder_model.pth",
-                vocoder_config=f"{model_path}/vocoder_config.json"
-            )
+            # Try to initialize the synthesizer with Coqui TTS
+            try:
+                # First try with newer Coqui TTS API
+                if 'TTS' in locals():
+                    self.tts_model = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC")
+                else:
+                    # Fall back to older API
+                    self.tts_model = Synthesizer(
+                        tts_checkpoint=f"{model_path}/model.pth",
+                        tts_config_path=f"{model_path}/config.json",
+                        vocoder_checkpoint=f"{model_path}/vocoder_model.pth",
+                        vocoder_config=f"{model_path}/vocoder_config.json"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not initialize local TTS model: {str(e)}")
+                logger.warning("Will use pretrained model from Coqui TTS")
+                from TTS.api import TTS
+                self.tts_model = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC")
             
             self.model_loaded = True
             self.current_model_lang = lang_code
-            logger.info(f"Mozilla TTS model for {lang_code} loaded successfully")
+            logger.info(f"TTS model for {lang_code} loaded successfully")
             
         except Exception as e:
-            logger.error(f"Error loading Mozilla TTS model: {str(e)}")
+            logger.error(f"Error loading TTS model: {str(e)}")
             self.model_loaded = False
             self.current_model_lang = None
             raise
@@ -1304,6 +1320,32 @@ class TTSProviderFactory:
             return AzureTTSProvider()
         elif provider_type == "google" and Config.USE_GOOGLE_TTS:
             return GoogleTTSProvider()
+        elif provider_type == "mozilla":
+            # Try to return Mozilla TTS, but don't let it fail the whole build
+            try:
+                return MozillaTTSProvider()
+            except Exception as e:
+                logger.error(f"Failed to initialize Mozilla TTS provider: {str(e)}")
+                # Fallback to AWS or Azure if Mozilla fails
+                if Config.USE_AWS_POLLY:
+                    logger.info("Falling back to AWS Polly due to Mozilla TTS failure")
+                    return AWSPollyProvider()
+                elif Config.USE_AZURE_TTS:
+                    logger.info("Falling back to Azure TTS due to Mozilla TTS failure")
+                    return AzureTTSProvider()
+                elif Config.USE_GOOGLE_TTS:
+                    logger.info("Falling back to Google TTS due to Mozilla TTS failure")
+                    return GoogleTTSProvider()
+        
+        # Default to Azure TTS since it's configured as primary
+        if Config.USE_AZURE_TTS:
+            return AzureTTSProvider()
+        elif Config.USE_AWS_POLLY:
+            return AWSPollyProvider()
         else:
-            # Default to Mozilla TTS
-            return MozillaTTSProvider()
+            # Last resort, try Mozilla but catch any errors
+            try:
+                return MozillaTTSProvider()
+            except Exception as e:
+                logger.error(f"Failed to initialize any TTS provider: {str(e)}")
+                raise RuntimeError("No TTS provider could be initialized")

@@ -119,7 +119,7 @@ const generateServiceToken = async (userId: string, walletAddress: string, ethWa
 };
 
 // Create/update user profiles in profile services through gateway
-const createUserProfiles = async (userId: string, seiWalletAddress: string, ethWalletAddress: string, signupMethod: string) => {
+const createUserProfiles = async (userId: string, seiWalletAddress: string, ethWalletAddress: string, signupMethod: string, languagePreferred?: string) => {
   try {
     // Skip profile creation if environment variable is set
     if (SKIP_PROFILE_CREATION) {
@@ -134,7 +134,8 @@ const createUserProfiles = async (userId: string, seiWalletAddress: string, ethW
       userId,
       walletAddress: seiWalletAddress,
       ethWalletAddress,
-      signupMethod
+      signupMethod,
+      language_preferred: languagePreferred || 'english' // Default to English if not specified
     };
     
     console.log('Profile data:', JSON.stringify(profileData));
@@ -252,11 +253,15 @@ router.post("/wallet", async (req, res) => {
     
     // Now create profiles as a background task (non-blocking)
     // This ensures the auth endpoint responds quickly
+    // Get language preference from request if available
+    const languagePreferred = req.body.language_preferred || undefined;
+    
     createUserProfiles(
       userId, 
       seiWalletAddress, 
       userEthWalletAddress, 
-      signupMethod
+      signupMethod,
+      languagePreferred
     ).catch(error => {
       console.error('Profile creation failed in background:', error);
     });

@@ -57,6 +57,7 @@ router.post('/', async (req, res, next) => {
       userId: userId as string,   // Associate profile with user ID
       walletAddress: userWallet,  // Use authenticated wallet from token
       ethWalletAddress: userEthWallet,  // Add Ethereum wallet if available
+      language_preferred: req.body.language_preferred, // Get preferred language from request
       streak: 0,
       xp: 0,
       createdAt: now,

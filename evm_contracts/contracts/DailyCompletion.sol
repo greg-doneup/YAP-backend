@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "./token/YapToken.sol";
+import "./token/YAPToken.sol";
 import "./vesting/VestingBucket.sol";
 
 /**
@@ -16,13 +16,13 @@ contract DailyCompletion is AccessControl, ReentrancyGuard, Pausable {
     bytes32 public constant BACKEND_ROLE = keccak256("BACKEND_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     
-    YapToken public token;
+    YAPToken public token;
     VestingBucket public vestingBucket;
 
     // Reward parameters
     uint256 public dailyReward = 25e16;              // 0.25 YAP (1 YAP = 1e18)
     uint256 public quizReward = 1e18;                // 1 YAP for quiz completion
-    uint256 public pointsPerYap = 4;                 // 4 points required for 1 YAP
+    uint256 public pointsPerYAP = 4;                 // 4 points required for 1 YAP
     
     // Emission decay parameters
     uint256 public lastDecayTimestamp;
@@ -36,7 +36,7 @@ contract DailyCompletion is AccessControl, ReentrancyGuard, Pausable {
     struct UserStats {
         uint256 pointTotal;        // Total points earned (1 per day)
         uint256 quizPoints;        // Points earned from quiz completions
-        uint256 totalYapAllocated; // Total YAP allocated through vesting
+        uint256 totalYAPAllocated; // Total YAP allocated through vesting
     }
     
     mapping(address => UserStats) public userStats;
@@ -53,7 +53,7 @@ contract DailyCompletion is AccessControl, ReentrancyGuard, Pausable {
      * @param _vestingBucket The VestingBucket contract address
      */
     constructor(address _token, address _vestingBucket) { 
-        token = YapToken(_token);
+        token = YAPToken(_token);
         vestingBucket = VestingBucket(_vestingBucket);
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -116,10 +116,10 @@ contract DailyCompletion is AccessControl, ReentrancyGuard, Pausable {
         userStats[user].quizPoints += 1;
         
         // When points threshold is reached, convert to tokens
-        uint256 pointsToUse = userStats[user].quizPoints / pointsPerYap * pointsPerYap;
+        uint256 pointsToUse = userStats[user].quizPoints / pointsPerYAP * pointsPerYAP;
         
         if (pointsToUse > 0) {
-            uint256 yapAmount = (pointsToUse / pointsPerYap) * quizReward;
+            uint256 yapAmount = (pointsToUse / pointsPerYAP) * quizReward;
             userStats[user].quizPoints -= pointsToUse;
             
             // Allocate reward to vesting bucket
@@ -145,7 +145,7 @@ contract DailyCompletion is AccessControl, ReentrancyGuard, Pausable {
         vestingBucket.allocate(user, amount);
         
         // Update user stats
-        userStats[user].totalYapAllocated += amount;
+        userStats[user].totalYAPAllocated += amount;
     }
     
     /**
@@ -213,9 +213,9 @@ contract DailyCompletion is AccessControl, ReentrancyGuard, Pausable {
      * @dev Set the number of points required per YAP (subject to timelock governance)
      * @param points New points per YAP
      */
-    function setPointsPerYap(uint256 points) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPointsPerYAP(uint256 points) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(points > 0, "DailyCompletion: points must be greater than 0");
-        pointsPerYap = points;
+        pointsPerYAP = points;
     }
     
     /**
@@ -269,7 +269,7 @@ contract DailyCompletion is AccessControl, ReentrancyGuard, Pausable {
         uint256 yapAllocated
     ) {
         UserStats memory stats = userStats[user];
-        return (stats.pointTotal, stats.quizPoints, stats.totalYapAllocated);
+        return (stats.pointTotal, stats.quizPoints, stats.totalYAPAllocated);
     }
     
     /**

@@ -20,7 +20,7 @@ The `BurnRedeemer` contract allows users to burn YAP tokens in exchange for NFT 
 
 | Variable | Type | Description |
 |----------|------|-------------|
-| yapToken | YapToken | Reference to the YAP token contract |
+| yapToken | YAPToken | Reference to the YAP token contract |
 | treasury | address | Address to receive a share of burned tokens |
 | treasuryShare | uint256 | Percentage of tokens sent to treasury (in basis points, 1000 = 10%) |
 | badgeTypes | mapping | Maps badge type IDs to their configurations |
@@ -55,7 +55,7 @@ The `BurnRedeemer` contract allows users to burn YAP tokens in exchange for NFT 
 ### Constructor
 
 ```solidity
-constructor(address _yapToken, address _treasury) ERC721("Yap Achievements", "YAPACH")
+constructor(address _yapToken, address _treasury) ERC721("YAP Achievements", "YAPACH")
 ```
 
 Initializes the contract with the YAP token address and treasury address.

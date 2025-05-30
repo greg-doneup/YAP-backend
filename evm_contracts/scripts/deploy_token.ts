@@ -104,7 +104,7 @@ async function main() {
 
     // Load the contract artifact
     console.log("Loading contract artifact...");
-    const artifactPath = path.join(__dirname, "../artifacts/contracts/YapToken.sol/YapToken.json");
+    const artifactPath = path.join(__dirname, "../artifacts/contracts/YAPToken.sol/YAPToken.json");
     if (!fs.existsSync(artifactPath)) {
       throw new Error(`Artifact not found at ${artifactPath}. Make sure you've compiled the contracts.`);
     }
@@ -171,7 +171,7 @@ async function main() {
     }
     
     const tokenAddress = receipt.contractAddress;
-    console.log("YapToken deployed to:", tokenAddress);
+    console.log("YAPToken deployed to:", tokenAddress);
     
     // Create deployments directory if it doesn't exist
     const deploymentsDir = path.join(__dirname, "../deployments");

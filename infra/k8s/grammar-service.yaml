@@ -1,25 +1,42 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: grammar-service }
+metadata:
+  name: grammar-service
+  labels:
+    app: grammar-service
 spec:
   replicas: 2
-  selector: { matchLabels: { app: grammar-service } }
+  selector:
+    matchLabels:
+      app: grammar-service
   template:
-    metadata: { labels: { app: grammar-service } }
+    metadata:
+      labels:
+        app: grammar-service
     spec:
       containers:
         - name: grammar
-          image: grammar-service:latest
-          ports: [{ containerPort: 8000, name: http }]
+          image: grammar-service
+          ports:
+            - containerPort: 8000
+              name: http
           resources:
-            requests: { cpu: "250m", memory: "256Mi" }
-            limits:   { cpu: "500m", memory: "512Mi" }
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: grammar-service }
+metadata:
+  name: grammar-service
+  labels:
+    app: grammar-service
 spec:
-  selector: { app: grammar-service }
+  selector:
+    app: grammar-service
   ports:
     - port: 80
       targetPort: 8000

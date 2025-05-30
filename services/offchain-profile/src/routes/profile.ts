@@ -1,6 +1,5 @@
 import express from "express";
 import { mongo, Profile, connectToDatabase } from "../mon/mongo";
-import { v4 as uuid } from "uuid";
 
 // Get user ID from the verified JWT token in the request
 const getUserIdFromRequest = (req: express.Request): string | undefined => {
@@ -10,7 +9,6 @@ const getUserIdFromRequest = (req: express.Request): string | undefined => {
 // Get wallet addresses from the verified JWT token in the request
 const getWalletAddressesFromRequest = (req: express.Request) => {
   return { 
-    sei: (req as any).user?.walletAddress || req.params.wallet,
     eth: (req as any).user?.ethWalletAddress
   };
 };
@@ -22,15 +20,15 @@ connectToDatabase().catch(err => {
   console.error('Failed to connect to MongoDB:', err);
 });
 
-/* GET /profile/:wallet */
-router.get("/:wallet", async (req, res, next) => {
+/* GET /profile/:userId */
+router.get("/:userId", async (req, res, next) => {
   try {
-    // Verify wallet ownership or admin access
-    const { sei: userWallet } = getWalletAddressesFromRequest(req);
-    const requestedWallet = req.params.wallet;
+    // Verify user ID ownership or admin access
+    const userIdFromToken = getUserIdFromRequest(req);
+    const requestedUserId = req.params.userId;
     
     // Only allow users to access their own profile unless they have admin role
-    const isOwnProfile = userWallet === requestedWallet;
+    const isOwnProfile = userIdFromToken === requestedUserId;
     const isAdmin = (req as any).user?.roles?.includes('admin');
     
     if (!isOwnProfile && !isAdmin) {
@@ -40,7 +38,7 @@ router.get("/:wallet", async (req, res, next) => {
       });
     }
     
-    const profile = await mongo.getProfile(requestedWallet);
+    const profile = await mongo.getProfile(requestedUserId);
     
     if (!profile) return res.status(404).json({
       error: 'not_found',
@@ -51,43 +49,39 @@ router.get("/:wallet", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/* POST /profile { walletAddress } */
+/* POST /profile */
 router.post("/", async (req, res, next) => {
   try {
-    const { sei: userWallet, eth: userEthWallet } = getWalletAddressesFromRequest(req);
+    const { eth: userEthWallet } = getWalletAddressesFromRequest(req);
     const userId = getUserIdFromRequest(req);
     
-    // Use the authenticated wallet address instead of relying on request body
-    if (!userWallet) {
+    if (!userId) {
       return res.status(400).json({ 
-        error: 'missing_wallet',
-        message: 'No wallet address associated with this account' 
+        error: 'missing_user_id',
+        message: 'No user ID found in the token' 
       });
     }
     
     const now = new Date().toISOString();
     
     try {
-      // First check if profile exists - this is now the expected flow
-      const existingProfile = await mongo.getProfile(userWallet);
+      // First check if profile exists
+      const existingProfile = await mongo.getProfile(userId);
       
       if (existingProfile) {
         // Update with any offchain-specific attributes if needed
-        // For now, we're just ensuring up-to-date timestamps
-        const updatedProfile = await mongo.updateProfile(userWallet, {
+        const updatedProfile = await mongo.updateProfile(userId, {
           updatedAt: now
         });
         
-        console.log(`Profile already exists for ${userWallet}, updated offchain attributes`);
+        console.log(`Profile already exists for user ${userId}, updated offchain attributes`);
         return res.status(200).json(updatedProfile);
       }
       
-      // If profile doesn't exist (unusual case), create it as before
-      console.log(`Creating new profile for ${userWallet} - this should be rare`);
+      // If profile doesn't exist (unusual case), create it
       const prof: Profile = {
-        walletAddress: userWallet,
+        userId,
         ethWalletAddress: userEthWallet,
-        userId: userId as string,
         xp: 0,
         streak: 0,
         createdAt: now,
@@ -101,11 +95,48 @@ router.post("/", async (req, res, next) => {
       if (err.code === 11000) {
         return res.status(409).json({ 
           error: 'profile_exists',
-          message: 'Profile for this wallet already exists' 
+          message: 'Profile already exists for this user' 
         });
       }
       throw err;
     }
+  } catch (err) { next(err); }
+});
+
+/* PATCH /profile/:userId { streak?, xp? } */
+router.patch("/:userId", async (req, res, next) => {
+  try {
+    // Verify user ID ownership or admin access
+    const userIdFromToken = getUserIdFromRequest(req);
+    const requestedUserId = req.params.userId;
+    
+    // Only allow users to update their own profile unless they have admin role
+    const isOwnProfile = userIdFromToken === requestedUserId;
+    const isAdmin = (req as any).user?.roles?.includes('admin');
+    
+    if (!isOwnProfile && !isAdmin) {
+      return res.status(403).json({ 
+        error: 'forbidden',
+        message: 'You can only update your own profile' 
+      });
+    }
+    
+    const now = new Date().toISOString();
+    const updates: Record<string, any> = { 
+      updatedAt: now,
+      ...req.body 
+    };
+
+    const updatedProfile = await mongo.updateProfile(requestedUserId, updates);
+    
+    if (!updatedProfile) {
+      return res.status(404).json({
+        error: 'not_found',
+        message: 'Profile not found'
+      });
+    }
+    
+    res.sendStatus(204);
   } catch (err) { next(err); }
 });
 

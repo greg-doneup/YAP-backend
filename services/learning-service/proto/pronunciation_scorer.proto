@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package pronunciation_scorer;
+
+service PronunciationScorerService {
+  // Scores pronunciation based on aligned audio and text
+  rpc ScorePronunciation (ScoringRequest) returns (ScoringResponse) {}
+  
+  // Health check endpoint
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse) {}
+}
+
+message ScoringRequest {
+  bytes audio_data = 1;         // Raw audio bytes
+  string text = 2;              // Reference text
+  string language_code = 3;     // Language code (e.g., "en-US", "es-ES")
+  string audio_format = 4;      // Format of the audio (e.g., "wav", "mp3")
+  repeated Alignment alignments = 5; // Word and phoneme alignments from the alignment service
+  string scoring_level = 6;     // "word", "phoneme", or "sentence"
+}
+
+message Alignment {
+  message WordAlignment {
+    string word = 1;
+    float start_time = 2;       // In seconds
+    float end_time = 3;         // In seconds
+    float confidence = 4;       // Between 0 and 1
+  }
+
+  message PhonemeAlignment {
+    string phoneme = 1;
+    float start_time = 2;       // In seconds
+    float end_time = 3;         // In seconds
+    float confidence = 4;       // Between 0 and 1
+    string word = 5;            // The word this phoneme belongs to
+  }
+
+  repeated WordAlignment word_alignments = 1;
+  repeated PhonemeAlignment phoneme_alignments = 2;
+}
+
+message PronunciationScore {
+  float score = 1;              // Between 0 and 100
+  repeated string feedback = 2; // Feedback messages
+}
+
+message WordScore {
+  string word = 1;
+  float score = 2;              // Between 0 and 100
+  repeated string issues = 3;   // Description of pronunciation issues
+  float start_time = 4;         // In seconds
+  float end_time = 5;           // In seconds
+}
+
+message PhonemeScore {
+  string phoneme = 1;
+  string word = 2;              // The word this phoneme belongs to
+  float score = 3;              // Between 0 and 100
+  string issue = 4;             // Description of pronunciation issue
+  float start_time = 5;         // In seconds
+  float end_time = 6;           // In seconds
+}
+
+message ScoringResponse {
+  bool success = 1;
+  string message = 2;
+  PronunciationScore overall_score = 3;
+  repeated WordScore word_scores = 4;
+  repeated PhonemeScore phoneme_scores = 5;
+  string scoring_id = 6;        // Unique identifier for this scoring result
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool status = 1;              // true if service is healthy
+  string message = 2;           // Description of health status
+}

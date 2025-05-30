@@ -135,7 +135,7 @@ async function tryContractWithAbi(address, contractName, abi) {
     const contract = new ethers.Contract(address, abi, provider);
     
     // Try a few common methods 
-    if (contractName === 'YapToken') {
+    if (contractName === 'YAPToken') {
       console.log("Attempting to call common ERC20 methods:");
       
       try {
@@ -196,16 +196,16 @@ async function main() {
   console.log("-".repeat(70));
 
   // Check contracts exist
-  const tokenExists = await checkContract(tokenAddress, "YapToken");
+  const tokenExists = await checkContract(tokenAddress, "YAPToken");
   const completionExists = await checkContract(completionAddress, "DailyCompletion");
 
   // Load ABIs
-  const tokenAbi = loadAbi("YapToken");
+  const tokenAbi = loadAbi("YAPToken");
   const completionAbi = loadAbi("DailyCompletion");
 
   // Try connecting with ABIs
   if (tokenExists && tokenAbi) {
-    await tryContractWithAbi(tokenAddress, "YapToken", tokenAbi);
+    await tryContractWithAbi(tokenAddress, "YAPToken", tokenAbi);
   }
   
   if (completionExists && completionAbi) {

@@ -3,15 +3,15 @@ import { Construct } from 'constructs';
 import { ProfileTable } from './profile-table';
 
 // Define environment properties with your AWS account and region
-interface YapStackProps extends StackProps {
+interface YAPStackProps extends StackProps {
   env?: {
     account?: string;
     region?: string;
   };
 }
 
-export class YapStack extends Stack {
-  constructor(scope: Construct, id: string, props?: YapStackProps) {
+export class YAPStack extends Stack {
+  constructor(scope: Construct, id: string, props?: YAPStackProps) {
     super(scope, id, props);
 
     const isLocalDev = props?.env?.account === 'local-development';

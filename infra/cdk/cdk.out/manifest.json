@@ -1,23 +1,23 @@
 {
   "version": "41.0.0",
   "artifacts": {
-    "YapDevStack.assets": {
+    "YAPDevStack.assets": {
       "type": "cdk:asset-manifest",
       "properties": {
-        "file": "YapDevStack.assets.json",
+        "file": "YAPDevStack.assets.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
       }
     },
-    "YapDevStack": {
+    "YAPDevStack": {
       "type": "aws:cloudformation:stack",
       "environment": "aws://local-development/us-east-1",
       "properties": {
-        "templateFile": "YapDevStack.template.json",
+        "templateFile": "YAPDevStack.template.json",
         "terminationProtection": false,
         "tags": {
           "environment": "local",
-          "project": "Yap"
+          "project": "YAP"
         },
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::local-development:role/cdk-hnb659fds-deploy-role-local-development-us-east-1",
@@ -26,7 +26,7 @@
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
-          "YapDevStack.assets"
+          "YAPDevStack.assets"
         ],
         "lookupRole": {
           "arn": "arn:${AWS::Partition}:iam::local-development:role/cdk-hnb659fds-lookup-role-local-development-us-east-1",
@@ -35,10 +35,10 @@
         }
       },
       "dependencies": [
-        "YapDevStack.assets"
+        "YAPDevStack.assets"
       ],
       "metadata": {
-        "/YapDevStack": [
+        "/YAPDevStack": [
           {
             "type": "aws:cdk:stack-tags",
             "data": [
@@ -48,12 +48,12 @@
               },
               {
                 "Key": "project",
-                "Value": "Yap"
+                "Value": "YAP"
               }
             ]
           }
         ],
-        "/YapDevStack/ProfileTable/Profiles": [
+        "/YAPDevStack/ProfileTable/Profiles": [
           {
             "type": "aws:cdk:hasPhysicalName",
             "data": {
@@ -61,32 +61,32 @@
             }
           }
         ],
-        "/YapDevStack/ProfileTable/Profiles/Resource": [
+        "/YAPDevStack/ProfileTable/Profiles/Resource": [
           {
             "type": "aws:cdk:logicalId",
             "data": "ProfileTableProfilesB9499456"
           }
         ],
-        "/YapDevStack/CDKMetadata/Default": [
+        "/YAPDevStack/CDKMetadata/Default": [
           {
             "type": "aws:cdk:logicalId",
             "data": "CDKMetadata"
           }
         ],
-        "/YapDevStack/BootstrapVersion": [
+        "/YAPDevStack/BootstrapVersion": [
           {
             "type": "aws:cdk:logicalId",
             "data": "BootstrapVersion"
           }
         ],
-        "/YapDevStack/CheckBootstrapVersion": [
+        "/YAPDevStack/CheckBootstrapVersion": [
           {
             "type": "aws:cdk:logicalId",
             "data": "CheckBootstrapVersion"
           }
         ]
       },
-      "displayName": "YapDevStack"
+      "displayName": "YAPDevStack"
     },
     "Tree": {
       "type": "cdk:tree",

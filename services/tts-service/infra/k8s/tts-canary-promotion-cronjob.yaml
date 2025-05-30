@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tts-canary-promotion
+  namespace: default
+spec:
+  schedule: "*/5 * * * *"  # every 5 minutes
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: canary-promotion
+            image: your_docker_registry/tts-service:latest
+            command: ["python", "/app/canary_promotion.py"]
+            env:
+              - name: PROMETHEUS_URL
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: PROMETHEUS_URL
+              - name: CANARY_LATENCY_THRESHOLD
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: CANARY_LATENCY_THRESHOLD
+              - name: CANARY_ERROR_THRESHOLD
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: CANARY_ERROR_THRESHOLD
+          restartPolicy: OnFailure

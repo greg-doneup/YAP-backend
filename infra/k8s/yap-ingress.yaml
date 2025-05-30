@@ -3,16 +3,17 @@ kind: Ingress
 metadata:
   name: yap-services
   annotations:
-    # Global annotations can go here
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+
 spec:
   ingressClassName: nginx
   rules:
+    # Development domain
     - host: yap.local
       http:
         paths:
-          # Auth Service
           - path: /auth
             pathType: Prefix
             backend:
@@ -84,9 +85,9 @@ spec:
                 port:
                   number: 50051
                   
-          # Gateway Service (as fallback for root routes)
-          - path: /
-            pathType: Prefix
+          # Gateway Service (as fallback for API routes not matched above)
+          - path: /api/(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: gateway-service

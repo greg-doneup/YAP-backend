@@ -133,7 +133,7 @@ The TimelockGovernor is designed to control critical parameters in the YAP ecosy
 1. YAP governance should transfer DEFAULT_ADMIN_ROLE of core contracts to the TimelockGovernor
 2. Critical parameter changes should be proposed through TimelockGovernor:
    - DailyCompletion.setDailyReward()
-   - DailyCompletion.setPointsPerYap()
+   - DailyCompletion.setPointsPerYAP()
    - DailyCompletion.setDecayParams()
    - VestingBucket.setVestingParameters()
    - VestingBucket.setWhitelistedDestination()

@@ -1,0 +1,38 @@
+# Helm values for Triton Inference Server
+enabled: true
+replicaCount: 1
+
+image:
+  repository: nvcr.io/nvidia/tritonserver
+  tag: 23.09-py3
+  pullPolicy: IfNotPresent
+
+service:
+  grpc:
+    enabled: true
+    port: 8001
+  http:
+    enabled: true
+    port: 8000
+
+# Enable GPU scheduling
+tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+resources:
+  limits:
+    nvidia.com/gpu: 1
+  requests:
+    nvidia.com/gpu: 1
+
+# Dynamic Batching configuration
+dynamicBatching:
+  enabled: true
+  preferredBatchSizes: [1, 2, 4, 8, 16]
+  maxQueueDelayMicroseconds: 50000  # 50 ms SLA
+  preserveOrdering: true
+
+podAnnotations:
+  sidecar.istio.io/inject: "false"

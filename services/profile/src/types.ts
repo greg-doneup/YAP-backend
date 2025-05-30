@@ -1,10 +1,8 @@
 export interface Profile {
-    walletAddress: string;     // PK
-    userId?: string;           // Auth user ID
-    ethWalletAddress?: string; // Ethereum wallet address
-    language_preferred?: string; // User's preferred language for learning
-    streak: number;            // consecutive days
-    xp: number;                // off-chain points
+    userId: string;           // PK - Auth user ID (64 char hex)
+    email: string;            // User's email address
+    name: string;             // User's full name
+    initial_language_to_learn: string; // Initial language the user wants to learn
     createdAt: string;
     updatedAt: string;
   }

@@ -12,7 +12,7 @@ const completionAddress = process.env.COMPLETION_ADDR;
 
 console.log("Starting basic contract check...");
 console.log(`Using RPC URL: ${rpcUrl}`);
-console.log(`YapToken address: ${tokenAddress}`);
+console.log(`YAPToken address: ${tokenAddress}`);
 console.log(`DailyCompletion address: ${completionAddress}`);
 
 async function main() {
@@ -20,17 +20,17 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   
   // Check token contract
-  console.log("\nChecking YapToken contract...");
+  console.log("\nChecking YAPToken contract...");
   try {
     const code = await provider.getCode(tokenAddress);
     if (code === "0x") {
-      console.log("❌ No contract found at YapToken address");
+      console.log("❌ No contract found at YAPToken address");
     } else {
-      console.log("✅ YapToken contract exists");
+      console.log("✅ YAPToken contract exists");
       console.log(`Code length: ${(code.length - 2) / 2} bytes`);
     }
   } catch (error) {
-    console.log("Error checking YapToken:", error.message);
+    console.log("Error checking YAPToken:", error.message);
   }
   
   // Check completion contract

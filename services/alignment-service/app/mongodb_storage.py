@@ -83,7 +83,7 @@ class MongoDBStorage:
         mongo_client = MongoDBClient.get_instance()
         self.db = mongo_client.get_db()
         
-        if self.db:
+        if self.db is not None:
             self.collection = self.db[self.collection_name]
             
             # Create index on alignment_id for faster lookups
@@ -186,7 +186,7 @@ class MongoDBCache:
         mongo_client = MongoDBClient.get_instance()
         self.db = mongo_client.get_db()
         
-        if self.db:
+        if self.db is not None:
             self.collection = self.db[self.collection_name]
             
             # Create TTL index for cache expiration if it doesn't exist

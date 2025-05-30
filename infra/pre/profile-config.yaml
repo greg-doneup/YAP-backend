@@ -1,0 +1,11 @@
+# infra/k8s/profile-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: profile-config          # must match Deployment envFrom reference
+data:
+  # Use MongoDB Atlas in development too
+  MONGO_URI: "mongodb+srv://yap-backend:sipwid-cemnYj-doqto2@cy0.uvp0w.mongodb.net/?retryWrites=true&w=majority&appName=CY0"
+  MONGO_DB_NAME: "yap"
+  # Development flags
+  USE_LOCAL_MONGO: "false"       # Set to use MongoDB Atlas instead of local

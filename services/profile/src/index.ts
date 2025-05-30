@@ -1,7 +1,7 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
-import { requireAuth, getUserIdFromRequest, getWalletAddressesFromRequest } from './shared/auth/authMiddleware';
+import { requireAuth, getUserIdFromRequest } from './shared/auth/authMiddleware';
 import { profileValidator } from './validators';
 import { profileController } from './controllers';
 import { connectToDatabase } from './mon/mongo';

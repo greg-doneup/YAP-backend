@@ -14,7 +14,7 @@ spec:
       serviceAccountName: profile-sa            # IRSA role maps here
       containers:
         - name: profile
-          image: offchain-profile:latest
+          image: offchain-profile
           ports:
             - containerPort: 8080
           envFrom:

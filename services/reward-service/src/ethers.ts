@@ -1,6 +1,8 @@
 import { ethers } from "ethers";
-import YapTokenAbi from "../abi/YapToken.json";
-import CompletionAbi from "../abi/DailyCompletion.json";
+import YAPTokenAbi from "../../abi/YapToken.json";
+import CompletionAbi from "../../abi/DailyCompletion.json";
+import * as fs from "fs";
+import * as path from "path";
 
 const provider = new ethers.JsonRpcProvider(process.env.EVM_RPC!);
 const wallet = new ethers.Wallet(process.env.REWARD_TREASURY_PK!, provider);
@@ -11,8 +13,6 @@ let completionAddress: string;
 
 try {
   // Try to load from deployments
-  const fs = require('fs');
-  const path = require('path');
   const completionDeploymentPath = path.join(__dirname, '../../../evm_contracts/deployments/completion.json');
   
   if (fs.existsSync(completionDeploymentPath)) {
@@ -44,5 +44,5 @@ export function completionContract() {
 }
 
 export function tokenContract() {
-  return new ethers.Contract(tokenAddress, YapTokenAbi, wallet);
+  return new ethers.Contract(tokenAddress, YAPTokenAbi, wallet);
 }

@@ -1,0 +1,45 @@
+name: Build TensorRT Engines
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-trt:
+    name: Compile TensorRT Engines
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-dev libnuma-dev
+
+      - name: Install Python dependencies
+        working-directory: services/tts-service
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-mlops.txt
+
+      - name: Compile TRT engines
+        working-directory: services/tts-service
+        run: |
+          python app/vocoder_quantization.py  # generate TorchScript & ONNX
+          python app/build_trt.py             # compile TRT engines
+
+      - name: Upload TRT artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: trt-engines
+          path: |
+            services/tts-service/optimized/vocoder/trt/vocoder_fp32.trt
+            services/tts-service/optimized/vocoder/trt/vocoder_int8.trt

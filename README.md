@@ -1,6 +1,6 @@
-# Yap Backend Microservices
+# YAP Backend Microservices
 
-This repository contains the Node.js microservices and Kubernetes manifests powering Yap’s backend: authentication, learning logic, and blockchain middleware.
+This repository contains the Node.js microservices and Kubernetes manifests powering YAP’s backend: authentication, learning logic, and blockchain middleware.
 
 ---
 
@@ -22,7 +22,7 @@ This repository contains the Node.js microservices and Kubernetes manifests powe
 
 ## Overview
 
-Yap’s backend comprises three core microservices:
+YAP’s backend comprises three core microservices:
 
 1. **Auth Service** — handles Web3Auth integration, user profiles, and off-chain session management.
 2. **Learning Service** — manages daily vocabulary sets, quiz logic, leaderboard, and streak computation.
@@ -90,8 +90,8 @@ The repo also includes Dockerfiles and Kubernetes manifests to deploy each servi
 
 1. **Clone the repo**:
    ```bash
-   git clone git@github.com:greg-doneup/Yap-backend.git
-   cd Yap-backend
+   git clone git@github.com:greg-doneup/YAP-backend.git
+   cd YAP-backend
    ```
 2. **Install dependencies** for each service:
    ```bash
@@ -115,6 +115,25 @@ dbUri=mongodb://...
 4. **Run locally** (without containers):
    ```bash
    cd services/auth-service && yarn start:dev
+   ```
+
+<!-- Use Minikube Docker context to build images directly into Minikube without eval -->
+Before running Skaffold, switch your Docker context:
+```bash
+docker context use minikube
+```
+
+<!-- Optional: Pin build platform for Apple Silicon hosts -->
+If you are on Apple Silicon (M1/M2), you can force builds for `linux/amd64`:
+```bash
+# docker buildx use default && docker buildx create --name mybuilder --use
+# docker buildx inspect --bootstrap
+# docker buildx build --platform linux/amd64 ...
+```
+
+3. **Run dev loop** with Skaffold (build→deploy→hot-reload):
+   ```bash
+   skaffold dev -p local
    ```
 
 ---

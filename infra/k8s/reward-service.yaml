@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: reward
-          image: reward-service:latest
+          image: reward-service
           ports: [{ containerPort: 8080 }]
           envFrom:
             - secretRef: { name: reward-secrets }

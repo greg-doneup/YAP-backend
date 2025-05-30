@@ -20,11 +20,11 @@ The `DailyCompletion` contract records user learning activities such as daily le
 
 | Variable | Type | Description |
 |----------|------|-------------|
-| token | YapToken | Reference to the YAP token contract |
+| token | YAPToken | Reference to the YAP token contract |
 | vestingBucket | VestingBucket | Reference to the VestingBucket contract |
 | dailyReward | uint256 | Reward amount for daily completion (default: 0.25 YAP) |
 | quizReward | uint256 | Reward amount per quiz (default: 1 YAP) |
-| pointsPerYap | uint256 | Quiz points needed for 1 YAP token (default: 4) |
+| pointsPerYAP | uint256 | Quiz points needed for 1 YAP token (default: 4) |
 | lastDecayTimestamp | uint256 | Timestamp of last reward decay |
 | decayPeriod | uint256 | Time between reward decays (default: 30 days) |
 | decayRate | uint256 | Percentage decay rate in basis points (default: 200 = 2%) |
@@ -38,7 +38,7 @@ The `DailyCompletion` contract records user learning activities such as daily le
 |-------|------|-------------|
 | pointTotal | uint256 | Total points earned from daily completions |
 | quizPoints | uint256 | Current quiz points balance |
-| totalYapAllocated | uint256 | Total YAP allocated through vesting |
+| totalYAPAllocated | uint256 | Total YAP allocated through vesting |
 
 ## Events
 
@@ -132,7 +132,7 @@ Allocates tokens to the vesting bucket for a user.
 **Effects:**
 - Mints YAP tokens to the VestingBucket contract
 - Registers the allocation with the VestingBucket
-- Updates user's totalYapAllocated stat
+- Updates user's totalYAPAllocated stat
 
 #### _checkAndApplyDecay
 
@@ -185,10 +185,10 @@ Sets the quiz reward amount (subject to timelock governance).
 **Requirements:**
 - Caller must have the DEFAULT_ADMIN_ROLE
 
-#### setPointsPerYap
+#### setPointsPerYAP
 
 ```solidity
-function setPointsPerYap(uint256 points) external onlyRole(DEFAULT_ADMIN_ROLE)
+function setPointsPerYAP(uint256 points) external onlyRole(DEFAULT_ADMIN_ROLE)
 ```
 
 Sets the number of points required per YAP (subject to timelock governance).

@@ -8,14 +8,14 @@ dotenv.config({ path: path.join(__dirname, "../.env.development") });
 
 // Check if ABI files exist
 const abiPath = path.join(__dirname, "../abi");
-if (!fs.existsSync(path.join(abiPath, "YapToken.json")) || 
+if (!fs.existsSync(path.join(abiPath, "YAPToken.json")) || 
     !fs.existsSync(path.join(abiPath, "DailyCompletion.json"))) {
   console.error("ABI files not found. Please ensure the ABI files are in the /abi directory");
   process.exit(1);
 }
 
 // Import ABIs
-const YapTokenAbi = require("../abi/YapToken.json");
+const YAPTokenAbi = require("../abi/YAPToken.json");
 const CompletionAbi = require("../abi/DailyCompletion.json");
 
 // Get environment variables
@@ -34,7 +34,7 @@ const provider = new ethers.JsonRpcProvider(rpcUrl);
 const wallet = new ethers.Wallet(privateKey, provider);
 
 // Create contract instances
-const tokenContract = new ethers.Contract(tokenAddress, YapTokenAbi, wallet);
+const tokenContract = new ethers.Contract(tokenAddress, YAPTokenAbi, wallet);
 const completionContract = new ethers.Contract(completionAddress, CompletionAbi, wallet);
 
 // Test user address - use your wallet address for testing
@@ -43,7 +43,7 @@ const testUserAddress = wallet.address;
 async function runTests() {
   console.log("Starting contract interaction tests...");
   console.log("Using contracts:");
-  console.log(`- YapToken: ${tokenAddress}`);
+  console.log(`- YAPToken: ${tokenAddress}`);
   console.log(`- DailyCompletion: ${completionAddress}`);
   console.log(`- Test user: ${testUserAddress}`);
   console.log("-".repeat(50));
@@ -62,7 +62,7 @@ async function runTests() {
 
     // Test 2: Check contract owner
     console.log("Test 2: Checking contract permissions...");
-    console.log("-- YapToken Contract --");
+    console.log("-- YAPToken Contract --");
     
     const MINTER_ROLE = await tokenContract.MINTER_ROLE();
     console.log(`MINTER_ROLE hash: ${MINTER_ROLE}`);

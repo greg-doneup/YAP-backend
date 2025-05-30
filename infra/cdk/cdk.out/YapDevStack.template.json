@@ -27,14 +27,14 @@
      },
      {
       "Key": "project",
-      "Value": "Yap"
+      "Value": "YAP"
      }
     ]
    },
    "UpdateReplacePolicy": "Retain",
    "DeletionPolicy": "Retain",
    "Metadata": {
-    "aws:cdk:path": "YapDevStack/ProfileTable/Profiles/Resource"
+    "aws:cdk:path": "YAPDevStack/ProfileTable/Profiles/Resource"
    }
   },
   "CDKMetadata": {
@@ -43,7 +43,7 @@
     "Analytics": "v2:deflate64:H4sIAAAAAAAA/yXGQQ5AMBAAwLe4t0udOPtBucu2XUmpNrFKRPxdwmmmBtUqqAo8WVq3yOAN3P2OdhF48uiuiGtyBu4BTSDRTfHLIzRxypulR8TkCGYuD9WAaqEqZvZebjnufiXQvy9DKYyGaAAAAA=="
    },
    "Metadata": {
-    "aws:cdk:path": "YapDevStack/CDKMetadata/Default"
+    "aws:cdk:path": "YAPDevStack/CDKMetadata/Default"
    }
   }
  },

@@ -10,8 +10,6 @@ type NextFunction = express.NextFunction;
 export const profileValidator = (req: Request, res: Response, next: NextFunction) => {
   // For new profile creation
   if (req.method === 'POST') {
-    // The walletAddress is now taken from the JWT token, so we don't need to validate it here
-    // Just pass through to the controller
     return next();
   }
   

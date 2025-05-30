@@ -2,8 +2,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 // Define Profile interface
 export interface Profile {
-  userId?: string;
-  walletAddress: string;  // PK
+  userId: string;  // PK
   ethWalletAddress?: string;
   xp: number;
   streak: number;
@@ -16,9 +15,9 @@ export interface ProfileDocument extends Profile, Document {}
 
 // Define Profile schema
 const ProfileSchema: Schema = new Schema({
-  userId: { type: String },
-  walletAddress: { type: String, required: true, unique: true, index: true },
+  userId: { type: String, required: true, unique: true, index: true },
   ethWalletAddress: { type: String },
+  email: { type: String, sparse: true }, // Optional email field with sparse index
   xp: { type: Number, default: 0, index: true }, // Index for leaderboard queries
   streak: { type: Number, default: 0 },
   createdAt: { type: String, default: () => new Date().toISOString() },
@@ -75,33 +74,33 @@ export async function connectToDatabase(): Promise<void> {
  * MongoDB wrapper to provide consistent API
  */
 export const mongo = {
-  // Get profile by wallet address
-  async getProfile(walletAddress: string): Promise<Profile | null> {
+  // Get profile by user ID
+  async getProfile(userId: string): Promise<Profile | null> {
     if (fallbackToMemory) {
-      return inMemoryDB.get(walletAddress) || null;
+      return inMemoryDB.get(userId) || null;
     }
     
-    return ProfileModel.findOne({ walletAddress }).lean();
+    return ProfileModel.findOne({ userId }).lean();
   },
   
   // Create or replace profile
   async putProfile(profile: Profile): Promise<void> {
     if (fallbackToMemory) {
-      inMemoryDB.set(profile.walletAddress, profile);
+      inMemoryDB.set(profile.userId, profile);
       return;
     }
     
     await ProfileModel.findOneAndUpdate(
-      { walletAddress: profile.walletAddress },
+      { userId: profile.userId },
       profile,
       { upsert: true, new: true }
     );
   },
   
   // Update profile
-  async updateProfile(walletAddress: string, update: Partial<Profile>): Promise<Profile | null> {
+  async updateProfile(userId: string, update: Partial<Profile>): Promise<Profile | null> {
     if (fallbackToMemory) {
-      const profile = inMemoryDB.get(walletAddress);
+      const profile = inMemoryDB.get(userId);
       if (!profile) return null;
       
       const updatedProfile = { 
@@ -109,44 +108,44 @@ export const mongo = {
         ...update,
         updatedAt: new Date().toISOString()
       };
-      inMemoryDB.set(walletAddress, updatedProfile);
+      inMemoryDB.set(userId, updatedProfile);
       return updatedProfile;
     }
     
     return ProfileModel.findOneAndUpdate(
-      { walletAddress },
+      { userId },
       { ...update, updatedAt: new Date().toISOString() },
       { new: true }
     ).lean();
   },
   
   // Add XP points to a profile
-  async addXP(walletAddress: string, points: number): Promise<Profile | null> {
+  async addXP(userId: string, points: number): Promise<Profile | null> {
     if (fallbackToMemory) {
-      const profile = inMemoryDB.get(walletAddress);
+      const profile = inMemoryDB.get(userId);
       if (!profile) return null;
       
       profile.xp = (profile.xp || 0) + points;
       profile.updatedAt = new Date().toISOString();
-      inMemoryDB.set(walletAddress, profile);
+      inMemoryDB.set(userId, profile);
       return profile;
     }
     
     return ProfileModel.findOneAndUpdate(
-      { walletAddress },
+      { userId },
       { $inc: { xp: points }, updatedAt: new Date().toISOString() },
       { new: true }
     ).lean();
   },
   
   // Delete profile
-  async deleteProfile(walletAddress: string): Promise<void> {
+  async deleteProfile(userId: string): Promise<void> {
     if (fallbackToMemory) {
-      inMemoryDB.delete(walletAddress);
+      inMemoryDB.delete(userId);
       return;
     }
     
-    await ProfileModel.deleteOne({ walletAddress });
+    await ProfileModel.deleteOne({ userId });
   },
   
   // Get leaderboard by XP

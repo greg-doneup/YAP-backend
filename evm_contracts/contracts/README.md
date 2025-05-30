@@ -17,7 +17,7 @@ The YAP ecosystem consists of five main components:
 ```
 contracts/
 ├── token/
-│   └── YapToken.sol         # ERC-20 token with role-based permissions
+│   └── YAPToken.sol         # ERC-20 token with role-based permissions
 ├── vesting/
 │   └── VestingBucket.sol    # Token vesting with cliff and linear release
 ├── rewards/
@@ -30,7 +30,7 @@ contracts/
 
 ## Contract Details
 
-### YapToken (`token/YapToken.sol`)
+### YAPToken (`token/YAPToken.sol`)
 
 An ERC-20 token with enhanced functionality:
 
@@ -58,7 +58,7 @@ Holds user balances under time-based vesting:
 - `allocate(user, amount)`: Adds tokens to a user's vesting schedule
 - `claim()`: Releases vested tokens to the caller
 - `spendToWhitelisted(destination, amount)`: Spends locked tokens to whitelisted contracts
-- `beforeTransfer(from, to, amount)`: Called by YapToken to enforce transfer locks
+- `beforeTransfer(from, to, amount)`: Called by YAPToken to enforce transfer locks
 
 ### DailyCompletion (`rewards/DailyCompletion.sol`)
 
@@ -107,7 +107,7 @@ Time-locked governance for secure parameter changes:
 2. **User Claims Vested Tokens**:
    - User calls `VestingBucket.claim()`
    - VestingBucket transfers unlocked tokens to user
-   - YapToken performs the transfer
+   - YAPToken performs the transfer
 
 3. **User Spends Tokens for Badge**:
    - User approves BurnRedeemer to spend their tokens
@@ -132,11 +132,11 @@ Time-locked governance for secure parameter changes:
 
 The contracts must be deployed in the following order:
 
-1. YapToken
-2. VestingBucket (with YapToken address)
-3. Set the VestingBucket in YapToken
-4. DailyCompletion (with YapToken and VestingBucket addresses)
-5. BurnRedeemer (with YapToken address)
+1. YAPToken
+2. VestingBucket (with YAPToken address)
+3. Set the VestingBucket in YAPToken
+4. DailyCompletion (with YAPToken and VestingBucket addresses)
+5. BurnRedeemer (with YAPToken address)
 6. TimelockGovernor
 
 After deployment:

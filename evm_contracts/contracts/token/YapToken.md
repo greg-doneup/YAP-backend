@@ -1,8 +1,8 @@
-# YapToken Technical Documentation
+# YAPToken Technical Documentation
 
 ## Overview
 
-`YapToken` is an ERC-20 compliant token with additional security features and role-based access control. It implements the ERC20Permit extension to enable gasless approvals, which is especially useful for mobile-based applications. The token also includes a transfer-lock system that interacts with the VestingBucket contract to enforce vesting schedules.
+`YAPToken` is an ERC-20 compliant token with additional security features and role-based access control. It implements the ERC20Permit extension to enable gasless approvals, which is especially useful for mobile-based applications. The token also includes a transfer-lock system that interacts with the VestingBucket contract to enforce vesting schedules.
 
 ## Inheritance
 
@@ -34,10 +34,10 @@
 ### Constructor
 
 ```solidity
-constructor() ERC20("Yap Token", "YAP") ERC20Permit("Yap Token")
+constructor() ERC20("YAP Token", "YAP") ERC20Permit("YAP Token")
 ```
 
-Initializes the token with the name "Yap Token" and symbol "YAP", and grants all roles to the deployer.
+Initializes the token with the name "YAP Token" and symbol "YAP", and grants all roles to the deployer.
 
 ### Administrative Functions
 
@@ -137,7 +137,7 @@ Hook that is called before any transfer of tokens, including mint and burn. This
 
 The token integrates with the VestingBucket contract through the `_beforeTokenTransfer` hook:
 
-1. When a user attempts to transfer tokens, the YapToken contract calls the `beforeTransfer` function on the VestingBucket contract.
+1. When a user attempts to transfer tokens, the YAPToken contract calls the `beforeTransfer` function on the VestingBucket contract.
 2. The VestingBucket checks if the sender has enough unlocked (vested) tokens or if the recipient is a whitelisted destination.
 3. The transfer only proceeds if allowed by the VestingBucket.
 
@@ -151,10 +151,10 @@ This mechanism enforces the vesting schedule while allowing some flexibility for
    - DEFAULT_ADMIN_ROLE should be transferred to a multisig wallet
    - The deployer should renounce all roles
 
-2. **Circular Dependencies**: The YapToken and VestingBucket have a circular dependency that is carefully managed:
-   - YapToken is deployed first
-   - VestingBucket is deployed with YapToken address
-   - YapToken.setVestingBucket is called with VestingBucket address
+2. **Circular Dependencies**: The YAPToken and VestingBucket have a circular dependency that is carefully managed:
+   - YAPToken is deployed first
+   - VestingBucket is deployed with YAPToken address
+   - YAPToken.setVestingBucket is called with VestingBucket address
    - The _beforeTokenTransfer hook has safeguards for when VestingBucket is not yet set
 
 3. **Pausing**: The pause function should only be used in emergency situations and be controlled by a trusted multisig.
@@ -164,15 +164,15 @@ This mechanism enforces the vesting schedule while allowing some flexibility for
 ### Setting up the token with vesting
 
 ```javascript
-// Deploy YapToken
-const YapToken = await ethers.getContractFactory("YapToken");
-const yapToken = await YapToken.deploy();
+// Deploy YAPToken
+const YAPToken = await ethers.getContractFactory("YAPToken");
+const yapToken = await YAPToken.deploy();
 
 // Deploy VestingBucket
 const VestingBucket = await ethers.getContractFactory("VestingBucket");
 const vestingBucket = await VestingBucket.deploy(yapToken.address);
 
-// Set VestingBucket in YapToken
+// Set VestingBucket in YAPToken
 await yapToken.setVestingBucket(vestingBucket.address);
 
 // Grant roles

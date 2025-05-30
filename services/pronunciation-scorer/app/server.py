@@ -28,11 +28,45 @@ from app.language_detector import LanguageDetector
 if Config.MONGODB_ENABLED:
     from app.mongodb_storage import MongoDBScoringStorage, MongoDBScoringCache
 
-# Set up metrics
-REQUEST_TIME = Summary('pronunciation_scoring_seconds', 'Time spent processing scoring requests')
-REQUEST_COUNT = Counter('pronunciation_scoring_total', 'Total number of scoring requests', ['language', 'success'])
-PROVIDER_USAGE = Counter('pronunciation_scorer_provider_usage', 'Provider usage count', ['provider'])
-MODEL_MEMORY_USAGE = Gauge('pronunciation_scorer_memory_mb', 'Memory usage of scoring models in MB')
+# Set up metrics with duplicate protection
+import os
+
+class DummyMetric:
+    """Dummy metric that does nothing to avoid registration conflicts"""
+    def time(self):
+        return lambda func: func
+    def inc(self, *args, **kwargs):
+        pass
+    def set(self, value):
+        pass
+    def labels(self, *args, **kwargs):
+        return self
+
+# Check if we should use real metrics or dummy ones
+USE_METRICS = os.getenv('DISABLE_METRICS', 'false').lower() != 'true'
+
+if USE_METRICS:
+    try:
+        REQUEST_TIME = Summary('pronunciation_scoring_seconds', 'Time spent processing scoring requests')
+        REQUEST_COUNT = Counter('pronunciation_scoring_total', 'Total number of scoring requests', ['language', 'success'])
+        PROVIDER_USAGE = Counter('pronunciation_scorer_provider_usage', 'Provider usage count', ['provider'])
+        MODEL_MEMORY_USAGE = Gauge('pronunciation_scorer_memory_mb', 'Memory usage of scoring models in MB')
+        logger.info("Prometheus metrics initialized successfully")
+    except ValueError as e:
+        if "Duplicated timeseries" in str(e):
+            logger.warning("Metrics already registered, using dummy metrics")
+            REQUEST_TIME = DummyMetric()
+            REQUEST_COUNT = DummyMetric()
+            PROVIDER_USAGE = DummyMetric()
+            MODEL_MEMORY_USAGE = DummyMetric()
+        else:
+            raise
+else:
+    logger.info("Metrics disabled via DISABLE_METRICS environment variable")
+    REQUEST_TIME = DummyMetric()
+    REQUEST_COUNT = DummyMetric()
+    PROVIDER_USAGE = DummyMetric()
+    MODEL_MEMORY_USAGE = DummyMetric()
 
 class PronunciationScorerService(pronunciation_scorer_pb2_grpc.PronunciationScorerServiceServicer):
     """

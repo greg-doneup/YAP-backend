@@ -15,6 +15,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Test hot-reload functionality - this is a test comment
 app.use((req, _res, next) => {
   req.headers["x-request-id"] ||= randomUUID();
   next();

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yap-landing
+  labels:
+    app: yap-landing
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: yap-landing
+  template:
+    metadata:
+      labels:
+        app: yap-landing
+    spec:
+      containers:
+      - name: yap-landing
+        image: registry.digitalocean.com/yap-cr/yap-landing:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yap-landing
+spec:
+  type: ClusterIP
+  selector:
+    app: yap-landing
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

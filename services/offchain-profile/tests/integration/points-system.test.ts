@@ -61,6 +61,7 @@ describe('Points System API', () => {
     await ProfileModel.create({
       userId: testUserId,
       walletAddress: testWallet,
+      email: 'test@example.com',
       xp: 100,
       streak: 1,
       createdAt: new Date().toISOString(),
@@ -107,6 +108,7 @@ describe('Points System API', () => {
     await ProfileModel.create({
       userId: 'leaderboard-user',
       walletAddress: 'sei1leaderboard1234wallet',
+      email: 'leader@example.com',
       xp: 500,
       streak: 5,
       createdAt: new Date().toISOString(),

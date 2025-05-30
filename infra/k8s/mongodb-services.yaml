@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: tts-service
-        image: yap/tts-service:latest
+        image: tts-service
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50053
@@ -78,7 +78,7 @@ spec:
     spec:
       containers:
       - name: alignment-service
-        image: yap/alignment-service:latest
+        image: alignment-service
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50051
@@ -141,7 +141,7 @@ spec:
     spec:
       containers:
       - name: pronunciation-scorer
-        image: yap/pronunciation-scorer:latest
+        image: pronunciation-scorer
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50052
@@ -185,3 +185,117 @@ spec:
           limits:
             memory: "1Gi"
             cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-score
+  labels:
+    app: voice-score
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voice-score
+  template:
+    metadata:
+      labels:
+        app: voice-score
+    spec:
+      containers:
+      - name: voice-score
+        image: voice-score
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50051
+          name: grpc
+        env:
+        - name: GRPC_PORT
+          value: "50051"
+        # Enable MongoDB storage
+        - name: MONGODB_ENABLED
+          value: "true"
+        # Add MongoDB connection details from secrets
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_URI
+        - name: MONGO_DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: MONGO_DB_NAME
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+---
+# Service definitions for MongoDB-enabled services
+apiVersion: v1
+kind: Service
+metadata:
+  name: tts-service
+  labels:
+    app: tts-service
+spec:
+  selector:
+    app: tts-service
+  ports:
+  - port: 50053
+    targetPort: 50053
+    name: grpc
+  - port: 8002
+    targetPort: 8002
+    name: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alignment-service
+  labels:
+    app: alignment-service
+spec:
+  selector:
+    app: alignment-service
+  ports:
+  - port: 50051
+    targetPort: 50051
+    name: grpc
+  - port: 8000
+    targetPort: 8000
+    name: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pronunciation-scorer
+  labels:
+    app: pronunciation-scorer
+spec:
+  selector:
+    app: pronunciation-scorer
+  ports:
+  - port: 50052
+    targetPort: 50052
+    name: grpc
+  - port: 8001
+    targetPort: 8001
+    name: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-score
+  labels:
+    app: voice-score
+spec:
+  selector:
+    app: voice-score
+  ports:
+  - port: 50051
+    targetPort: 50051
+    name: grpc

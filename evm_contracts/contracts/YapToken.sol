@@ -6,11 +6,11 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
- * @title YapToken
+ * @title YAPToken
  * @dev ERC-20 token with role-based minting, burning, pausing, and transfer-lock hooks.
  * Implements ERC20Permit for gasless approvals to enhance mobile UX.
  */
-contract YapToken is ERC20Permit, AccessControl, Pausable {
+contract YAPToken is ERC20Permit, AccessControl, Pausable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -21,9 +21,9 @@ contract YapToken is ERC20Permit, AccessControl, Pausable {
 
     /**
      * @dev Constructor that sets up roles and initializes the token
-     * with name "Yap Token" and symbol "YAP"
+     * with name "YAP Token" and symbol "YAP"
      */
-    constructor() ERC20("Yap Token", "YAP") ERC20Permit("Yap Token") {
+    constructor() ERC20("YAP Token", "YAP") ERC20Permit("YAP Token") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
         _grantRole(BURNER_ROLE, msg.sender);
@@ -35,7 +35,7 @@ contract YapToken is ERC20Permit, AccessControl, Pausable {
      * @param _vestingBucket Address of the VestingBucket contract
      */
     function setVestingBucket(address _vestingBucket) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_vestingBucket != address(0), "YapToken: vesting bucket cannot be zero address");
+        require(_vestingBucket != address(0), "YAPToken: vesting bucket cannot be zero address");
         vestingBucket = _vestingBucket;
         emit VestingBucketSet(_vestingBucket);
     }
@@ -103,7 +103,7 @@ contract YapToken is ERC20Permit, AccessControl, Pausable {
         
         require(
             success && abi.decode(data, (bool)),
-            "YapToken: transfer lock active or destination not whitelisted"
+            "YAPToken: transfer lock active or destination not whitelisted"
         );
     }
 }

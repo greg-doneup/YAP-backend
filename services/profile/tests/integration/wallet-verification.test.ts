@@ -12,17 +12,11 @@ jest.mock('../../src/shared/auth/authMiddleware', () => ({
   requireAuth: () => (req: any, res: any, next: any) => {
     req.user = {
       sub: 'test-user-123',
-      walletAddress: 'sei1test12345wallet67890address',
-      ethWalletAddress: '0xb7682afA514F0EDb9B2e9D6aF690ff9E88d8214f',
       type: 'access'
     };
     next();
   },
-  getUserIdFromRequest: (req: any) => req.user?.sub || 'test-user-123',
-  getWalletAddressesFromRequest: (req: any) => ({
-    sei: req.user?.walletAddress || 'sei1test12345wallet67890address',
-    eth: req.user?.ethWalletAddress || '0xb7682afA514F0EDb9B2e9D6aF690ff9E88d8214f'
-  })
+  getUserIdFromRequest: (req: any) => req.user?.sub || 'test-user-123'
 }));
 
 describe('Wallet Verification API', () => {
@@ -72,7 +66,8 @@ describe('Wallet Verification API', () => {
       .send({
         userId: testUserId,
         walletAddress: testSeiWallet,
-        ethWalletAddress: testEthWallet
+        ethWalletAddress: testEthWallet,
+        email: 'test@example.com'
       });
       
     expect(response.status).toBe(201);

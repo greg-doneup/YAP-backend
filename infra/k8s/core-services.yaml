@@ -1,0 +1,76 @@
+# Core services that don't require storage and work with existing configurations
+# This file includes all services except those migrated to MongoDB Atlas
+
+# Include all non-storage services by referencing their individual files
+# Auth service
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-auth
+data:
+  note: "Auth service is in auth-service.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-profile
+data:
+  note: "Profile service is in profile.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-gateway
+data:
+  note: "Gateway service is in gateway-service.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-grammar
+data:
+  note: "Grammar service is in grammar-service.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-reward
+data:
+  note: "Reward service is in reward-service.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-offchain-profile
+data:
+  note: "Offchain profile service is in offchain-profile.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-observability
+data:
+  note: "Observability service is in observability-service.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-learning
+data:
+  note: "Learning service is in learning-service.yaml"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: include-wallet
+data:
+  note: "Wallet service is in wallet-service-deployment.yaml and wallet-service-service.yaml"

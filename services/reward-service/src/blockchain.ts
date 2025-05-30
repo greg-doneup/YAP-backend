@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import YapTokenAbi from "../abi/YapToken.json";
-import CompletionAbi from "../abi/DailyCompletion.json";
+import YAPToken from '../../abi/YapToken.json';  // resolve with JSON include
+import CompletionAbi from "../../abi/DailyCompletion.json";
 
 // Simple inline logger implementation
 const logger = {
@@ -81,12 +81,12 @@ try {
 }
 
 // Create read-only contract instances for public queries
-const readTokenContract = new ethers.Contract(tokenAddress, YapTokenAbi, provider);
+const readTokenContract = new ethers.Contract(tokenAddress, YAPToken, provider);
 const readCompletionContract = new ethers.Contract(completionAddress, CompletionAbi, provider);
 
 // Create contract instances with wallet for transactions (if wallet available)
 const tokenContract = wallet 
-  ? new ethers.Contract(tokenAddress, YapTokenAbi, wallet) 
+  ? new ethers.Contract(tokenAddress, YAPToken, wallet) 
   : readTokenContract;
 
 const completionContract = wallet 
@@ -218,8 +218,8 @@ export async function recordCompletion(userAddress: string): Promise<{success: b
  */
 export async function getUserStats(userAddress: string): Promise<{
   pointTotal: string,
-  mintableYap: string,
-  totalYapMinted: string
+  mintableYAP: string,
+  totalYAPMinted: string
 }> {
   try {
     const stats = await withRetry(async () => {
@@ -228,8 +228,8 @@ export async function getUserStats(userAddress: string): Promise<{
     
     return {
       pointTotal: stats.pointTotal.toString(),
-      mintableYap: ethers.formatUnits(stats.mintableYap, 18),
-      totalYapMinted: ethers.formatUnits(stats.totalYapMinted, 18)
+      mintableYAP: ethers.formatUnits(stats.mintableYAP, 18),
+      totalYAPMinted: ethers.formatUnits(stats.totalYAPMinted, 18)
     };
   } catch (error: any) {
     logger.error('Error getting user stats:', error);
@@ -241,7 +241,7 @@ export async function getUserStats(userAddress: string): Promise<{
  * Mint a user's accumulated YAP tokens
  * Only works if minting is enabled in the contract
  */
-export async function mintAccumulatedYap(userAddress: string): Promise<{success: boolean, txHash?: string, error?: string}> {
+export async function mintAccumulatedYAP(userAddress: string): Promise<{success: boolean, txHash?: string, error?: string}> {
   if (!wallet) {
     return {
       success: false,
@@ -264,16 +264,16 @@ export async function mintAccumulatedYap(userAddress: string): Promise<{success:
     
     // Check if there's anything to mint
     const userStats = await getUserStats(userAddress);
-    if (parseFloat(userStats.mintableYap) === 0) {
+    if (parseFloat(userStats.mintableYAP) === 0) {
       return {
         success: false,
         error: 'No YAP available to mint'
       };
     }
     
-    // Call the mintAccumulatedYap function
+    // Call the mintAccumulatedYAP function
     const tx = await withRetry(async () => {
-      return await completionContract.mintAccumulatedYap({
+      return await completionContract.mintAccumulatedYAP({
         gasLimit: 250000,
       });
     });
@@ -366,7 +366,7 @@ export async function adminMintFor(userAddress: string): Promise<{success: boole
   try {
     // Check if there's anything to mint
     const userStats = await getUserStats(userAddress);
-    if (parseFloat(userStats.mintableYap) === 0) {
+    if (parseFloat(userStats.mintableYAP) === 0) {
       return {
         success: false,
         error: 'No YAP available to mint for this user'

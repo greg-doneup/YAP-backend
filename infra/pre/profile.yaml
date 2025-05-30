@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: profile-sa
+  annotations:
+    eks.amazonaws.com/role-arn: ${aws_iam_role.offchain_profile_role.arn}
+---
+# A local ConfigMap to simulate development environment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-dev-config
+  labels:
+    app: profile
+data:
+  USE_LOCAL_MONGO: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: profile-service
+  labels:
+    app: profile
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: profile
+  template:
+    metadata:
+      labels:
+        app: profile
+    spec:
+      serviceAccountName: profile-sa
+      containers:
+        - name: profile
+          image: registry.digitalocean.com/yap-cr/profile-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            # Include local development config
+            - name: USE_LOCAL_MONGO
+              valueFrom:
+                configMapKeyRef:
+                  name: local-dev-config
+                  key: USE_LOCAL_MONGO
+                  optional: true
+          envFrom:
+            - secretRef:
+                name: profile-secrets
+            - secretRef:
+                name: mongodb-secrets
+            - secretRef:
+                name: mongodb-secrets
+            - configMapRef:
+                name: profile-config
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: profile-service
+  labels:
+    app: profile
+spec:
+  type: ClusterIP
+  selector:
+    app: profile
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http

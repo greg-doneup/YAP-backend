@@ -20,7 +20,7 @@ The `VestingBucket` contract manages token vesting schedules for users with a cl
 
 | Variable | Type | Description |
 |----------|------|-------------|
-| token | YapToken | Reference to the YAP token contract |
+| token | YAPToken | Reference to the YAP token contract |
 | cliffDuration | uint256 | Duration of the cliff period (default: 7 days) |
 | vestingDuration | uint256 | Duration of the vesting period after cliff (default: 30 days) |
 | whitelistedDestinations | mapping(address => bool) | Addresses that can receive locked tokens |
@@ -117,7 +117,7 @@ Allows a user to spend locked tokens to a whitelisted destination (like BurnRede
 **Returns:**
 - `success`: Whether the spend was successful
 
-### Integration with YapToken
+### Integration with YAPToken
 
 #### beforeTransfer
 
@@ -125,7 +125,7 @@ Allows a user to spend locked tokens to a whitelisted destination (like BurnRede
 function beforeTransfer(address from, address to, uint256 amount) external view returns (bool allowed)
 ```
 
-Called by the YapToken contract before any token transfer to enforce vesting rules.
+Called by the YAPToken contract before any token transfer to enforce vesting rules.
 
 **Parameters:**
 - `from`: The sender address

@@ -2,9 +2,9 @@
   "version": "41.0.0",
   "files": {
     "b177307babcc9a3516f687b0bd80f6b6121424623f0261502f7609380c7b4dec": {
-      "displayName": "YapDevStack Template",
+      "displayName": "YAPDevStack Template",
       "source": {
-        "path": "YapDevStack.template.json",
+        "path": "YAPDevStack.template.json",
         "packaging": "file"
       },
       "destinations": {

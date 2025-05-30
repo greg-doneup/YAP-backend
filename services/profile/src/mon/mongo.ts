@@ -2,11 +2,10 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 // Define Profile interface
 export interface Profile {
-  userId?: string;
-  walletAddress: string;
-  ethWalletAddress?: string;
-  xp: number;
-  streak: number;
+  userId: string;
+  email: string;
+  name: string;
+  initial_language_to_learn: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -16,11 +15,10 @@ export interface ProfileDocument extends Profile, Document {}
 
 // Define Profile schema
 const ProfileSchema: Schema = new Schema({
-  userId: { type: String },
-  walletAddress: { type: String, required: true, unique: true, index: true },
-  ethWalletAddress: { type: String },
-  xp: { type: Number, default: 0, index: true }, // Index for leaderboard queries
-  streak: { type: Number, default: 0 },
+  userId: { type: String, required: true, unique: true, index: true },
+  email:    { type: String, required: true, unique: true, index: true },
+  name: { type: String, required: true },
+  initial_language_to_learn: { type: String, required: true },
   createdAt: { type: String, default: () => new Date().toISOString() },
   updatedAt: { type: String, default: () => new Date().toISOString() }
 }, { 
@@ -64,6 +62,14 @@ export async function connectToDatabase(): Promise<void> {
     await mongoose.connect(MONGO_URI, options);
     isConnected = true;
     console.log('MongoDB connected successfully');
+    
+    // Verify connection by creating a test document
+    try {
+      const testDoc = await ProfileModel.findOne().limit(1);
+      console.log('MongoDB connection verification - found document:', testDoc ? 'YES' : 'NO');
+    } catch (testError) {
+      console.error('MongoDB connection verification failed:', testError);
+    }
   } catch (error) {
     console.error('Failed to connect to MongoDB:', error);
     fallbackToMemory = true;
@@ -89,12 +95,39 @@ export async function putItem(item: Profile): Promise<{}> {
     return {};
   }
   
-  await ProfileModel.findOneAndUpdate(
-    { userId: item.userId },
-    item,
-    { upsert: true }
-  );
-  return {};
+  try {
+    console.log(`Putting profile for user: ${item.userId}`, JSON.stringify(item, null, 2));
+    
+    // First check if the profile actually exists
+    const existingProfile = await ProfileModel.findOne({ userId: item.userId });
+    console.log(`Checking if profile exists for ${item.userId}:`, !!existingProfile);
+    
+    if (existingProfile) {
+      // Update existing profile
+      console.log(`Profile exists, updating for user: ${item.userId}`);
+      const result = await ProfileModel.findOneAndUpdate(
+        { userId: item.userId },
+        item,
+        { new: true }
+      );
+      console.log(`Updated profile for user: ${item.userId}, success:`, !!result);
+    } else {
+      // Create new profile
+      console.log(`No profile found, creating new profile for user: ${item.userId}`);
+      const newProfile = new ProfileModel(item);
+      await newProfile.save();
+      console.log(`Created new profile for user: ${item.userId}`);
+    }
+    
+    // Verify the profile was saved
+    const verifyProfile = await ProfileModel.findOne({ userId: item.userId });
+    console.log(`Verified profile exists for ${item.userId}:`, !!verifyProfile);
+    
+    return {};
+  } catch (error) {
+    console.error(`Error putting profile for ${item.userId}:`, error);
+    throw error;
+  }
 }
 
 export async function updateItem(params: any): Promise<{ Attributes: Profile | null }> {

@@ -16,6 +16,7 @@
         "@cosmjs/cosmwasm-stargate": "^0.33.1",
         "@cosmjs/math": "^0.33.1",
         "@cosmjs/proto-signing": "^0.33.1",
+        "bip39": "^3.1.0",
         "dotenv": "^16.5.0",
         "ethers": "^6.13.7",
         "express": "^4.19.2",
@@ -24,8 +25,8 @@
     },
     "devDependencies": {
         "@types/express": "^4.17.21",
-        "@types/jsonwebtoken": "^9.0.5",
         "@types/jest": "^29.5.6",
+        "@types/jsonwebtoken": "^9.0.5",
         "@typescript-eslint/eslint-plugin": "^6.21.0",
         "@typescript-eslint/parser": "^6.21.0",
         "eslint": "^9.25.1",

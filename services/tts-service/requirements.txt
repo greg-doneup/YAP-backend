@@ -8,19 +8,22 @@ boto3>=1.28.0  # For AWS Polly and DynamoDB
 azure-cognitiveservices-speech>=1.25.0  # For Azure TTS
 google-cloud-texttospeech>=2.12.0  # For Google Cloud TTS
 
+# MongoDB integration
+pymongo>=4.0.0
+
 # TTS is installed separately in Dockerfile with --no-deps
 
 grpcio>=1.50.0
 grpcio-tools>=1.50.0
 protobuf>=4.21.0
 
+prometheus_client>=0.17.0  # For metrics collection
 python-dotenv>=1.0.0
+kafka-python>=2.0.2  # For Kafka integration
 
 lxml>=4.9.0
 
 pytest>=7.3.0
-
-prometheus-client>=0.17.0
 
 langdetect>=1.0.9
 fasttext>=0.9.2 

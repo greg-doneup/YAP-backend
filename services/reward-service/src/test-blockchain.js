@@ -11,7 +11,7 @@ const blockchain = require('./blockchain');
 async function runTests() {
   console.log('Starting contract interaction tests...');
   console.log('Using contracts:');
-  console.log(`- YapToken: ${process.env.TOKEN_ADDR}`);
+  console.log(`- YAPToken: ${process.env.TOKEN_ADDR}`);
   console.log(`- DailyCompletion: ${process.env.COMPLETION_ADDR}`);
   
   // Generate a test user address if not provided

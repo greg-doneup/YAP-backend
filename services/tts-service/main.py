@@ -26,10 +26,15 @@ def main():
     Main function to start the TTS service.
     """
     try:
-        # Start metrics server for Prometheus
+        # Start metrics server for Prometheus if enabled
         metrics_port = Config.METRICS_PORT
-        logger.info(f"Starting metrics server on port {metrics_port}")
-        start_http_server(metrics_port)
+        metrics_enabled = os.environ.get("METRICS_ENABLED", "true").lower() in ["true", "1", "yes"]
+        
+        if metrics_enabled:
+            logger.info(f"Starting metrics server on port {metrics_port}")
+            start_http_server(metrics_port)
+        else:
+            logger.info("Metrics collection is disabled")
         
         # Start gRPC server
         grpc_port = Config.GRPC_PORT

@@ -1,0 +1,100 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yap-services
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # TLS and Let's Encrypt
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Security settings
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+    # Add standard security headers without configuration-snippet
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://goyap.ai,https://www.goyap.ai"
+    # Individual security headers (supported by the controller)
+    nginx.ingress.kubernetes.io/x-frame-options: "SAMEORIGIN"
+spec:
+  ingressClassName: nginx
+  # Add TLS configuration
+  tls:
+  - hosts:
+    - goyap.ai
+    - www.goyap.ai
+    secretName: yap-tls-secret
+  rules:
+    - host: goyap.ai
+      http:
+        paths:
+          # serve the Angular front-end at the root path
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-landing
+                port:
+                  number: 80
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+                  
+          # Profile Service
+          - path: /profile
+            pathType: Prefix
+            backend:
+              service:
+                name: profile-service
+                port:
+                  number: 80
+                  
+          # Offchain Profile
+          - path: /offchain
+            pathType: Prefix
+            backend:
+              service:
+                name: offchain-profile
+                port:
+                  number: 80
+    
+    - host: www.goyap.ai
+      http:
+        paths:
+          # serve the Angular front-end at the root path
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-landing
+                port:
+                  number: 80
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+                  
+          # Profile Service
+          - path: /profile
+            pathType: Prefix
+            backend:
+              service:
+                name: profile-service
+                port:
+                  number: 80
+                  
+          # Offchain Profile
+          - path: /offchain
+            pathType: Prefix
+            backend:
+              service:
+                name: offchain-profile
+                port:
+                  number: 80

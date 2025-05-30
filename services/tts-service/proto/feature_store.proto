@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package tts.features;
+
+import "google/protobuf/timestamp.proto";
+
+// Schema definitions for rich feature store expansion
+
+// Entity: User identifier
+message UserEntity {
+  string user_id = 1;
+}
+
+// User feedback: thumbs up/down or rating
+message UserFeedbackFeature {
+  string user_id = 1;
+  google.protobuf.Timestamp event_timestamp = 2;
+  // Feedback score: e.g. between 1 (worst) and 5 (best)
+  double feedback_score = 3;
+  // Optional comment text
+  string comment = 4;
+}
+
+// Audio quality prediction features
+message AudioQualityPredictionFeature {
+  string request_id = 1;
+  google.protobuf.Timestamp event_timestamp = 2;
+  // Predicted audio quality score [0.0,1.0]
+  double quality_score = 3;
+  // Model version used for prediction
+  string model_version = 4;
+}
+
+// Device metadata features
+message DeviceMetadataFeature {
+  string request_id = 1;
+  google.protobuf.Timestamp event_timestamp = 2;
+  string device_id = 3;
+  string device_type = 4;      // e.g. "mobile", "desktop"
+  string os = 5;              // e.g. "iOS 17.4", "Ubuntu 20.04"
+  string browser = 6;         // e.g. "Chrome 114"
+}

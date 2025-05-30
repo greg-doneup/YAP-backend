@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { Wallet, HDNodeWallet, JsonRpcProvider } from 'ethers';
+import { Wallet, HDNodeWallet } from 'ethers';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+import * as bip39 from 'bip39';
 
 const router = Router();
 const JWT_SECRET = process.env.APP_JWT_SECRET!;
@@ -19,27 +20,19 @@ interface RequestWithUser extends Request {
 
 /**
  * Regenerate the Ethereum wallet from SEI wallet and JWT iat
- * Updated for ethers.js v6 compatibility
+ * Updated to use BIP39 mnemonic standards
  */
 function regenerateEthWallet(seiWalletAddress: string, timestamp: number): HDNodeWallet {
-  // Create a deterministic seed from the wallet address and timestamp
-  const seedPhrase = crypto.createHash('sha256')
-    .update(`${seiWalletAddress}:${timestamp}:YAP_ETH_WALLET_SEED`)
-    .digest('hex');
+  // Create deterministic seed from SEI wallet and timestamp
+  const seed = crypto.createHash('sha512')
+    .update(`${seiWalletAddress}:${timestamp}:YAP_ETH_WALLET_SEED_V2`)
+    .digest();
   
-  // In ethers v6, we use the Wallet.fromPhrase method to create a wallet from a mnemonic
-  // We'll use a standard mnemonic and derive a path based on our seed for determinism
-  const mnemonic = "test test test test test test test test test test test junk";
-  
-  // Create a deterministic path based on our seedPhrase
-  const index = parseInt(seedPhrase.slice(0, 8), 16) % 1000;
-  
-  // First create the wallet from the mnemonic
-  const baseWallet = Wallet.fromPhrase(mnemonic);
-  
-  // Then derive the specific path
-  const path = `m/44'/60'/0'/0/${index}`;
-  return baseWallet.derivePath(path);
+  // Convert first 32 bytes to valid BIP39 mnemonic
+  const mnemonic = bip39.entropyToMnemonic(seed.slice(0, 32));
+
+  // Use standard BIP44 derivation path for Ethereum
+  return HDNodeWallet.fromPhrase(mnemonic).derivePath("m/44'/60'/0'/0/0");
 }
 
 /**

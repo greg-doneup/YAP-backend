@@ -4,11 +4,17 @@ kind: Config
 build:
   local:
     push: false                # keep images local
+    useBuildkit: true          # enable Docker BuildKit
+    useDockerCLI: true         # use local Docker CLI (ensure 'docker context use minikube')
+    concurrency: 2             # Build max 2 images simultaneously to reduce memory pressure
+  tagPolicy:
+    sha256: {}                 # Use content hash as tags to reduce warnings
   artifacts:
     # ---------- AUTH ----------
     - image: auth-service
       context: services/auth
       docker:
+        network: host      # allow npm registry resolution during build
         dockerfile: Dockerfile
       sync:
         manual:
@@ -18,6 +24,7 @@ build:
     - image: profile-service           # must match profile.yaml .spec.template.image
       context: services/profile
       docker:
+        network: host      # allow npm registry resolution during build
         dockerfile: Dockerfile
       sync:
         manual:
@@ -27,6 +34,7 @@ build:
     - image: voice-score
       context: services/voice-score
       docker:
+        network: host      # allow pip to resolve DNS
         dockerfile: Dockerfile
       sync:
         manual:
@@ -36,6 +44,7 @@ build:
     - image: grammar-service
       context: services/grammar-service
       docker:
+        network: host      # allow pip/Debian repos to resolve
         dockerfile: Dockerfile
       sync:
         manual:
@@ -45,6 +54,7 @@ build:
     - image: reward-service
       context: services/reward-service
       docker:
+        network: host      # allow npm registry resolution during build
         dockerfile: Dockerfile
       sync:
         manual:
@@ -56,6 +66,7 @@ build:
     - image: offchain-profile
       context: services/offchain-profile
       docker:
+        network: host      # allow npm registry resolution during build
         dockerfile: Dockerfile
       sync:
         manual:
@@ -65,6 +76,7 @@ build:
     - image: observability-service
       context: services/observability-service
       docker:
+        network: host      # allow npm registry resolution during build
         dockerfile: Dockerfile
       sync:
         manual:
@@ -74,6 +86,7 @@ build:
     - image: learning-service
       context: services/learning-service
       docker:
+        network: host      # allow npm registry resolution during build
         dockerfile: Dockerfile
       sync:
         manual:
@@ -87,18 +100,19 @@ build:
     - image: gateway-service
       context: services/gateway-service
       docker:
+        network: host      # allow npm registry resolution during build
         dockerfile: Dockerfile
       sync:
         manual:
           - src: "src/**/*.ts"
             dest: .
           - src: "src/**/*.json"
-            dest: .
-            
+            dest: .        
     # ---------- ALIGNMENT-SERVICE ----------
     - image: alignment-service
       context: services/alignment-service
       docker:
+        network: host      # allow pip/Debian repos to resolve
         dockerfile: Dockerfile
       sync:
         manual:
@@ -111,6 +125,7 @@ build:
     - image: pronunciation-scorer
       context: services/pronunciation-scorer
       docker:
+        network: host      # allow pip/Debian repos to resolve
         dockerfile: Dockerfile
       sync:
         manual:
@@ -119,10 +134,11 @@ build:
           - src: "proto/**/*.proto"
             dest: .
 
-    # ---------- TTS-SERVICE ----------
+    # # ---------- TTS-SERVICE ----------
     - image: tts-service
       context: services/tts-service
       docker:
+        network: host      # use host network to allow DNS resolution during apt
         dockerfile: Dockerfile
       sync:
         manual:
@@ -130,21 +146,103 @@ build:
             dest: .
           - src: "proto/**/*.proto"
             dest: .
+    # ---------- WALLET-SERVICE ----------
+    - image: wallet-service
+      context: services/wallet-service
+      docker:
+        network: host      # allow pip registry resolution during build
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "**/*.py"
+            dest: .
+          - src: "**/*.json"
+            dest: .
+          - src: "**/*.xml"
+            dest: .
+          - src: "proto/**/*.proto"
+            dest: .
+          - src: "app/**/*.py"
+            dest: .
 deploy:
+  # Deploy Triton via Helm (disabled for local development)
+  # helm:
+  #   releases:
+  #     - name: triton-server
+  #       chartPath: trtis
+  #       repo: oci://nvcr.io/nvidia/tritonserver/helm
+  #       version: "23.09.0"
+  #       namespace: default
+  #       valuesFiles:
+  #         - infra/triton-values.yaml
   kubectl:
     manifests:
-      - infra/k8s/*.yaml       # picks up profile.yaml, profile-hpa.yaml, etc.
-  # Use the default context (no explicit kubeContext)
-  logs:
-    prefix: container
-
+      # MongoDB Atlas enabled services (no PVC dependencies)
+      - infra/k8s/mongodb-services.yaml
+      - infra/k8s/mongodb-secrets.yaml
+      # Core services without storage dependencies
+      - infra/k8s/auth-service.yaml
+      - infra/k8s/auth-secret.yaml
+      - infra/k8s/auth-hpa.yaml
+      - infra/k8s/profile.yaml
+      - infra/k8s/profile-config.yaml
+      - infra/k8s/profile-secret.yaml
+      - infra/k8s/profile-hpa.yaml
+      - infra/k8s/gateway-service.yaml
+      - infra/k8s/grammar-service.yaml
+      - infra/k8s/reward-service.yaml
+      - infra/k8s/reward-config.yaml
+      - infra/k8s/reward-secrets.yaml
+      - infra/k8s/offchain-profile.yaml
+      - infra/k8s/observability-service.yaml
+      - infra/k8s/observability-config.yaml
+      - infra/k8s/observability-sa.yaml
+      - infra/k8s/learning-service.yaml
+      - infra/k8s/wallet-service-deployment.yaml
+      - infra/k8s/wallet-service-service.yaml
+      # Monitoring and infrastructure
+      - infra/k8s/grafana-deployment.yaml
+      - infra/k8s/grafana-service.yaml
+      - infra/k8s/grafana-configmap-dashboards.yaml
+      - infra/k8s/yap-ingress.yaml
+      # Exclude PVC-dependent services (tts-service.yaml, alignment-service.yaml, pronunciation-scorer.yaml)
+      # These are now deployed via mongodb-services.yaml without PVC dependencies
 profiles:
   - name: local
     build:
       local:
         push: false
     deploy:
+      helm:
+        releases: []
       kubectl:
         manifests:
-          - infra/k8s/*.yaml
-      # No explicit kubeContext here either
+          # MongoDB Atlas enabled services (no PVC dependencies)
+          - infra/k8s/mongodb-services.yaml
+          - infra/k8s/mongodb-secrets.yaml
+          # Core services without storage dependencies
+          - infra/k8s/auth-service.yaml
+          - infra/k8s/auth-secret.yaml
+          - infra/k8s/auth-hpa.yaml
+          - infra/k8s/profile.yaml
+          - infra/k8s/profile-config.yaml
+          - infra/k8s/profile-secret.yaml
+          - infra/k8s/profile-hpa.yaml
+          - infra/k8s/gateway-service.yaml
+          - infra/k8s/grammar-service.yaml
+          - infra/k8s/reward-service.yaml
+          - infra/k8s/reward-config.yaml
+          - infra/k8s/reward-secrets.yaml
+          - infra/k8s/offchain-profile.yaml
+          - infra/k8s/observability-service.yaml
+          - infra/k8s/observability-config.yaml
+          - infra/k8s/observability-sa.yaml
+          - infra/k8s/learning-service.yaml
+          - infra/k8s/wallet-service-deployment.yaml
+          - infra/k8s/wallet-service-service.yaml
+          # Monitoring and infrastructure
+          - infra/k8s/grafana-deployment.yaml
+          - infra/k8s/grafana-service.yaml
+          - infra/k8s/grafana-configmap-dashboards.yaml
+          - infra/k8s/yap-ingress.yaml
+          # Exclude PVC-dependent services - using MongoDB Atlas instead

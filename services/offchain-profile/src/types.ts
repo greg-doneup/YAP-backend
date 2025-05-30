@@ -1,7 +1,7 @@
 export interface Profile {
-    walletAddress: string;   // PK
-    userId?: string;         // Auth user ID
+    userId: string;         // PK - Auth user ID (64 char hex)
     ethWalletAddress?: string; // Ethereum wallet address
+    email?: string;         // User's email address
     xp: number;
     streak: number;
     createdAt: string;

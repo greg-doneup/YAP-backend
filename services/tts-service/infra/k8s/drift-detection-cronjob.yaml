@@ -1,0 +1,77 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tts-drift-detection
+  namespace: default
+spec:
+  schedule: "0 2 * * *"  # daily at 02:00 UTC
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: drift-sampler
+            image: your_docker_registry/tts-service:latest
+            command: ["python", "/app/drift_sampler.py"]
+            env:
+              - name: DRIFT_SAMPLING_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: DRIFT_SAMPLING_BUCKET
+              - name: DRIFT_RAW_LOGS_PREFIX
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: DRIFT_RAW_LOGS_PREFIX
+            volumeMounts:
+            - name: config
+              mountPath: /app/config
+          - name: drift-report
+            image: your_docker_registry/tts-service:latest
+            command: ["python", "/app/drift_report.py"]
+            env:
+              - name: DRIFT_SAMPLING_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: DRIFT_SAMPLING_BUCKET
+              - name: BASELINE_SAMPLE_PATH
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: BASELINE_SAMPLE_PATH
+          - name: drift-alert
+            image: your_docker_registry/tts-service:latest
+            command: ["python", "/app/drift_alert.py"]
+            env:
+              - name: DRIFT_SAMPLING_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: DRIFT_SAMPLING_BUCKET
+              - name: DRIFT_ALERT_THRESHOLD
+                valueFrom:
+                  configMapKeyRef:
+                    name: tts-config
+                    key: DRIFT_ALERT_THRESHOLD
+              - name: SLACK_WEBHOOK_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: tts-secrets
+                    key: SLACK_WEBHOOK_URL
+          restartPolicy: OnFailure
+          volumes:
+          - name: config
+            configMap:
+              name: tts-config
+              items:
+                - key: DRIFT_SAMPLING_BUCKET
+                  path: DRIFT_SAMPLING_BUCKET
+                - key: DRIFT_RAW_LOGS_PREFIX
+                  path: DRIFT_RAW_LOGS_PREFIX
+                - key: BASELINE_SAMPLE_PATH
+                  path: BASELINE_SAMPLE_PATH
+                - key: DRIFT_ALERT_THRESHOLD
+                  path: DRIFT_ALERT_THRESHOLD
+```

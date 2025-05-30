@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: default
+  labels:
+    grafana_dashboard: "1"
+data:
+  tts-metrics.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {"defaults": {},"overrides": []},
+          "gridPos": {"h": 8,"w": 12,"x": 0,"y": 0},
+          "id": 1,
+          "options": {"legend": {"displayMode": "table"}},
+          "targets": [
+            {
+              "expr": "sum(rate(tts_synthesis_requests_total[1m]))",
+              "format": "time_series",
+              "interval": "",
+              "legendFormat": "QPS",
+              "refId": "A"
+            }
+          ],
+          "title": "TTS Throughput (QPS)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {"defaults": {},"overrides": []},
+          "gridPos": {"h": 8,"w": 12,"x": 12,"y": 0},
+          "id": 2,
+          "options": {},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(tts_synthesis_latency_seconds_bucket[1m])) by (le))",
+              "format": "time_series",
+              "legendFormat": "P95 Latency",
+              "refId": "A"
+            }
+          ],
+          "title": "95th Percentile Latency (s)",
+          "type": "timeseries"
+        }
+      ],
+      "schemaVersion": 27,
+      "style": "dark",
+      "tags": ["tts","mlops"],
+      "templating": {"list": []},
+      "time": {"from": "now-1h","to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "YAP TTS Service Metrics",
+      "version": 1
+    }

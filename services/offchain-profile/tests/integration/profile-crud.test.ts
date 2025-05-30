@@ -79,7 +79,8 @@ describe('Profile CRUD API', () => {
       .send({
         userId: testUserId,
         walletAddress: testWallet,
-        ethWalletAddress: testEthWallet
+        ethWalletAddress: testEthWallet,
+        email: 'test@example.com'
       });
       
     expect(response.status).toBe(201);
@@ -135,6 +136,7 @@ describe('Profile CRUD API', () => {
       userId: 'another-user',
       walletAddress: 'sei1another5432wallet',
       ethWalletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      email: 'another@example.com',
       xp: 50,
       streak: 2,
       createdAt: new Date().toISOString(),

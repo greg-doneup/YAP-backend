@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { App, Tags } from 'aws-cdk-lib';
-import { YapStack } from '../lib/yap-stack';   // <- the stack that includes ProfileTable, etc.
+import { YAPStack } from '../lib/yap-stack';   // <- the stack that includes ProfileTable, etc.
 
 // 1. CDK app container
 const app = new App();
@@ -25,8 +25,8 @@ if (!env.account && !isLocalDev) {
 }
 
 // 3. Instantiate stacks
-new YapStack(app, 'YapDevStack', { env });
+new YAPStack(app, 'YAPDevStack', { env });
 
 // 4. (Optional) global tags for cost-allocation / search
-Tags.of(app).add('project', 'Yap');
+Tags.of(app).add('project', 'YAP');
 Tags.of(app).add('environment', isLocalDev ? 'local' : 'dev');

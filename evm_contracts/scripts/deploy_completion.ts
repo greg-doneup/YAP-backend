@@ -52,7 +52,7 @@ async function getGasPrice(rpcUrl: string): Promise<bigint> {
   }
   
   // If we can't get the gas price, use a default value
-  const defaultGasPrice = 2200000000n; // 2.2 Gwei, which worked for YapToken
+  const defaultGasPrice = 2200000000n; // 2.2 Gwei, which worked for YAPToken
   console.log(`Using default gas price: ${defaultGasPrice} wei`);
   return defaultGasPrice;
 }
@@ -64,10 +64,10 @@ async function main() {
     const privateKey = process.env.REWARD_TREASURY_PK;
     const chainId = Number(process.env.CHAIN_ID);
     
-    // Load YapToken contract address from deployments
+    // Load YAPToken contract address from deployments
     const tokenDeploymentPath = path.join(__dirname, "../deployments/token.json");
     if (!fs.existsSync(tokenDeploymentPath)) {
-      throw new Error("YapToken deployment info not found. Please deploy YapToken first.");
+      throw new Error("YAPToken deployment info not found. Please deploy YAPToken first.");
     }
     
     const tokenDeployment = JSON.parse(fs.readFileSync(tokenDeploymentPath, "utf8"));
@@ -77,7 +77,7 @@ async function main() {
     console.log(`RPC URL: ${rpcUrl}`);
     console.log(`Chain ID: ${chainId}`);
     console.log(`Private key available: ${privateKey ? 'Yes' : 'No'}`);
-    console.log(`YapToken address: ${yapTokenAddress}`);
+    console.log(`YAPToken address: ${yapTokenAddress}`);
 
     if (!rpcUrl || !privateKey) {
       throw new Error("Missing required environment variables (EVM_RPC or REWARD_TREASURY_PK)");
@@ -137,7 +137,7 @@ async function main() {
     console.log(`Using gas price: ${gasPrice} wei (${Number(gasPrice) / 1e9} Gwei)`);
     
     console.log("Preparing deployment transaction...");
-    // Deploy the DailyCompletion contract with the YapToken address as constructor parameter
+    // Deploy the DailyCompletion contract with the YAPToken address as constructor parameter
     const deploymentTx = await factory.getDeployTransaction(yapTokenAddress);
     console.log("Deployment transaction data prepared");
     
@@ -208,11 +208,11 @@ async function main() {
       fs.mkdirSync(abiDir, { recursive: true });
     }
     
-    // Save YapToken ABI
-    const yapTokenArtifactPath = path.join(__dirname, "../artifacts/contracts/YapToken.sol/YapToken.json");
+    // Save YAPToken ABI
+    const yapTokenArtifactPath = path.join(__dirname, "../artifacts/contracts/YAPToken.sol/YAPToken.json");
     const yapTokenArtifact = JSON.parse(fs.readFileSync(yapTokenArtifactPath, "utf8"));
     fs.writeFileSync(
-      path.join(abiDir, "YapToken.json"),
+      path.join(abiDir, "YAPToken.json"),
       JSON.stringify(yapTokenArtifact.abi, null, 2)
     );
     
@@ -227,7 +227,7 @@ async function main() {
     // **NEW CODE**: Grant the MINTER_ROLE to the DailyCompletion contract
     console.log("Granting MINTER_ROLE to the DailyCompletion contract...");
     
-    // Load the YapToken contract
+    // Load the YAPToken contract
     const yapTokenABI = yapTokenArtifact.abi;
     const yapTokenContract = new ethers.Contract(yapTokenAddress, yapTokenABI, connectedWallet);
     

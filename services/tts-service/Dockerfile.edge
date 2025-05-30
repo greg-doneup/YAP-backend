@@ -1,0 +1,41 @@
+# Edge deployment Dockerfile for offline capabilities
+FROM python:3.9-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libffi-dev \
+    libsndfile1 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY constraints.txt requirements-mlops.txt ./
+
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -c constraints.txt -r requirements-mlops.txt
+
+# Copy application code
+COPY app/ ./app/
+COPY main.py proto/ ./
+
+# Copy offline models into image
+# Ensure you have offline models in services/tts-service/models/offline/
+COPY models/offline/ ./models/offline/
+
+# Set environment variables for offline mode
+ENV USE_OFFLINE_MODE=true \
+    OFFLINE_MODEL_DIR=/app/models/offline \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Expose necessary ports
+EXPOSE 50053
+EXPOSE 8002
+
+# Start the service
+CMD ["python", "main.py"]

@@ -1,27 +1,43 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: observability-service }
+metadata:
+  name: observability-service
+  labels:
+    app: observability-service
 spec:
   replicas: 2
-  selector: { matchLabels: { app: observability-service } }
+  selector:
+    matchLabels:
+      app: observability-service
   template:
-    metadata: { labels: { app: observability-service } }
+    metadata:
+      labels:
+        app: observability-service
     spec:
       serviceAccountName: observability-sa  # IRSA for DynamoDB
       containers:
         - name: observability
-          image: observability-service:latest
-          ports: [{ containerPort: 8080, name: http }]
+          image: observability-service
+          ports:
+            - containerPort: 8080
+              name: http
           envFrom:
-            - configMapRef: { name: obs-config }
+            - configMapRef:
+                name: obs-config
           readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet:
+              path: /healthz
+              port: 8080
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: observability-service }
+metadata:
+  name: observability-service
+  labels:
+    app: observability-service
 spec:
-  selector: { app: observability-service }
+  selector:
+    app: observability-service
   ports:
     - port: 80
       targetPort: 8080

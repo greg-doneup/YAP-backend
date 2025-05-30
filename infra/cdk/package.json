@@ -2,7 +2,7 @@
   "name": "yap-infra",
   "version": "0.1.0",
   "private": true,
-  "description": "AWS CDK infrastructure for Yap (Profiles table, IAM, etc.)",
+  "description": "AWS CDK infrastructure for YAP (Profiles table, IAM, etc.)",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",

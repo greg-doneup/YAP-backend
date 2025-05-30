@@ -1,6 +1,6 @@
 # GOP (Goodness of Pronunciation) dependencies
-kaldi-gop>=0.1.0
-kaldi-python>=0.1.0
+# kaldi-gop>=0.1.0
+# kaldi-python>=0.1.0
 
 # gRPC dependencies
 grpcio>=1.50.0
@@ -19,6 +19,7 @@ pandas>=2.0.0
 pydub>=0.25.0
 python-dotenv>=1.0.0
 whisper>=1.0.0  # For language detection
+pymongo>=4.0.0  # For MongoDB integration
 
 # Testing
 pytest>=7.3.0

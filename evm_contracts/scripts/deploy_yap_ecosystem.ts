@@ -6,12 +6,12 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log(`Deployer address: ${deployer.address}`);
 
-  // Step 1: Deploy YapToken
-  console.log("\n1. Deploying YapToken...");
-  const YapToken = await ethers.getContractFactory("YapToken");
-  const yapToken = await YapToken.deploy();
+  // Step 1: Deploy YAPToken
+  console.log("\n1. Deploying YAPToken...");
+  const YAPToken = await ethers.getContractFactory("YAPToken");
+  const yapToken = await YAPToken.deploy();
   await yapToken.waitForDeployment();
-  console.log(`YapToken deployed at: ${await yapToken.getAddress()}`);
+  console.log(`YAPToken deployed at: ${await yapToken.getAddress()}`);
 
   // Step 2: Deploy VestingBucket
   console.log("\n2. Deploying VestingBucket...");
@@ -20,10 +20,10 @@ async function main() {
   await vestingBucket.waitForDeployment();
   console.log(`VestingBucket deployed at: ${await vestingBucket.getAddress()}`);
 
-  // Step 3: Connect YapToken to VestingBucket
-  console.log("\n3. Connecting YapToken to VestingBucket...");
+  // Step 3: Connect YAPToken to VestingBucket
+  console.log("\n3. Connecting YAPToken to VestingBucket...");
   await yapToken.setVestingBucket(await vestingBucket.getAddress());
-  console.log("VestingBucket set in YapToken");
+  console.log("VestingBucket set in YAPToken");
 
   // Step 4: Deploy DailyCompletion
   console.log("\n4. Deploying DailyCompletion...");
@@ -101,7 +101,7 @@ async function main() {
   console.log(JSON.stringify(deploymentInfo, null, 2));
 
   console.log("\nNext steps for secure setup:");
-  console.log("1. Renounce MINTER_ROLE from deployer in YapToken");
+  console.log("1. Renounce MINTER_ROLE from deployer in YAPToken");
   console.log("2. Transfer DEFAULT_ADMIN_ROLE to a multisig address");
   console.log("3. Transfer PAUSER_ROLE to a multisig address");
   console.log("4. Verify contracts on block explorer");

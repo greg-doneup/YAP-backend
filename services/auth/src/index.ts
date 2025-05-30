@@ -1,9 +1,6 @@
 import express from 'express';
-import dotenv from 'dotenv';
+require('dotenv').config();
 import authRoutes from './routes/auth';
-
-// Load environment variables
-dotenv.config();
 
 // Ensure required environment variables exist
 if (!process.env.APP_JWT_SECRET) {
@@ -13,6 +10,7 @@ if (!process.env.APP_JWT_SECRET) {
 
 // Create Express app
 const app = express();
+export { app }; // Export for testing
 const PORT = process.env.PORT || 8080;
 
 // Middleware

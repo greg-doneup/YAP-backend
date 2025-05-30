@@ -1,23 +1,31 @@
-# WhisperX and dependencies
-whisperx==0.1.0
+# WhisperX and dependencies - use compatible versions for PyTorch 2.x
+whisperx==3.1.1
 torch>=2.0.0
 torchaudio>=2.0.0
 soundfile>=0.12.0
-librosa>=0.10.0
+librosa>=0.9.0,<0.11.0
 
-# gRPC dependencies
-grpcio>=1.50.0
-grpcio-tools>=1.50.0
-protobuf>=4.21.0
+# Fix dependency conflicts - use compatible versions for Python 3.8
+pydantic>=1.8.0,<1.11.0
+spacy>=3.4.0,<3.5.0
+typing-extensions>=4.0.0
+
+# gRPC dependencies - compatible versions
+grpcio>=1.48.0,<1.51.0
+grpcio-tools>=1.48.0,<1.51.0
+protobuf>=3.19.0,<3.21.0
 
 # AWS SDK for S3 integration
 boto3>=1.28.0
 
-# Utilities
-numpy>=1.24.0
-pandas>=2.0.0
+# MongoDB integration
+pymongo>=4.0.0
+
+# Utilities - compatible versions for Python 3.8
+numpy>=1.21.0,<1.25.0
+pandas>=1.5.0,<2.1.0
 pydub>=0.25.0
-python-dotenv>=1.0.0
+python-dotenv>=0.19.0
 
 # Testing
 pytest>=7.3.0

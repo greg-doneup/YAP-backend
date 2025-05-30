@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import "../token/YapToken.sol";
+import "../token/YAPToken.sol";
 
 /**
  * @title BurnRedeemer
@@ -18,7 +18,7 @@ contract BurnRedeemer is ERC721Enumerable, AccessControl, ReentrancyGuard {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant BADGE_MANAGER_ROLE = keccak256("BADGE_MANAGER_ROLE");
     
-    YapToken public yapToken;
+    YAPToken public yapToken;
     address public treasury;
     uint256 public treasuryShare = 1000; // 10% (basis points - 10000 = 100%)
     
@@ -58,12 +58,12 @@ contract BurnRedeemer is ERC721Enumerable, AccessControl, ReentrancyGuard {
      * @param _treasury The treasury address to receive a share of burned tokens
      */
     constructor(address _yapToken, address _treasury) 
-        ERC721("Yap Achievements", "YAPACH") 
+        ERC721("YAP Achievements", "YAPACH") 
     {
         require(_yapToken != address(0), "BurnRedeemer: token cannot be zero address");
         require(_treasury != address(0), "BurnRedeemer: treasury cannot be zero address");
         
-        yapToken = YapToken(_yapToken);
+        yapToken = YAPToken(_yapToken);
         treasury = _treasury;
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);

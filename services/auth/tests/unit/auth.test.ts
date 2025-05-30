@@ -17,15 +17,30 @@ describe('Auth Utilities', () => {
       expect(result.ethWallet!.address.startsWith('0x')).toBe(true);
     });
     
-    it('should use provided wallet addresses', async () => {
+    it('should validate provided wallet addresses', async () => {
+      // First create a wallet to get valid addresses
       const userId = 'test-user-456';
-      const seiWalletAddress = 'sei1customwallet123';
-      const ethWalletAddress = '0xcustomethwallet456';
+      const initialResult = await createEmbeddedWallet(userId);
       
-      const result = await createEmbeddedWallet(userId, seiWalletAddress, ethWalletAddress);
+      // Now try to create it again with the same addresses
+      const result = await createEmbeddedWallet(
+        userId,
+        initialResult.wallet.address,
+        initialResult.ethWallet!.address
+      );
       
-      expect(result.wallet.address).toBe(seiWalletAddress);
-      expect(result.ethWallet!.address).toBe(ethWalletAddress);
+      // Should match exactly
+      expect(result.wallet.address).toBe(initialResult.wallet.address);
+      expect(result.ethWallet!.address).toBe(initialResult.ethWallet!.address);
+      
+      // Should throw with mismatched addresses
+      await expect(
+        createEmbeddedWallet(
+          userId,
+          'sei1invalidaddress',
+          '0xinvalidaddress'
+        )
+      ).rejects.toThrow('Provided SEI address does not match derived wallet');
     });
     
     it('should generate deterministic addresses for the same user', async () => {

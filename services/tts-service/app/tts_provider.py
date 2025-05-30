@@ -17,6 +17,7 @@ from app.config import Config
 from app.benchmarking import get_benchmarker
 from app.alignment_client import AlignmentServiceClient
 from app.language_detection import get_language_detector
+from app.ml_monitoring import get_ml_monitor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,7 @@ class TTSProvider(ABC):
         self.benchmarker = get_benchmarker()
         self.alignment_client = None
         self.language_detector = get_language_detector()
+        self.ml_monitor = get_ml_monitor()
         
         # Initialize alignment client if enabled
         if Config.USE_ALIGNMENT_SERVICE:
@@ -215,18 +217,59 @@ class MozillaTTSProvider(TTSProvider):
         self.tts_model = None
         self.model_loaded = False
         self.current_model_lang = None
+        self.adapters = {}  # per-user LoRA adapters
         
     def _load_model(self, language_code: str):
         """
         Load the TTS model for the specified language.
-        
-        Args:
-            language_code: Language code
         """
+        # Offline edge mode: load models from offline directory only
+        lang_code = self._normalize_language_code(language_code)
+        if Config.USE_OFFLINE_MODE:
+            offline_path = os.path.join(Config.OFFLINE_MODEL_DIR, lang_code)
+            if not os.path.isdir(offline_path):
+                raise RuntimeError(f"Offline model not found for {lang_code} in {offline_path}")
+            logger.info(f"Offline mode: loading model from {offline_path}")
+            model_path = offline_path
+        else:
+            # Use optimized model if enabled
+            if Config.USE_MODEL_OPTIMIZATION:
+                opt_path = os.path.join(Config.OPTIMIZED_MODEL_DIR, lang_code)
+                if os.path.isdir(opt_path):
+                    logger.info(f"Loading optimized TTS model from {opt_path}")
+                    model_path = opt_path
+                else:
+                    logger.info(f"Optimized model not found at {opt_path}, proceeding to registry/local models")
+                    # fallback below
+            # Use MLflow Model Registry if enabled
+            if Config.USE_MODEL_REGISTRY:
+                from app.model_registry import ModelRegistry
+                registry = ModelRegistry(Config.MLFLOW_TRACKING_URI)
+                try:
+                    registry_path = registry.get_latest_model(
+                        name=Config.MODEL_NAME,
+                        stage=Config.MODEL_STAGE
+                    )
+                    logger.info(f"Fetched model from registry at {registry_path}")
+                    model_path = registry_path
+                except Exception as e:
+                    logger.error(f"Failed to fetch model from registry: {e}")
+                    # Fallback to local models
+                    model_path = os.path.join(
+                        Config.MOZILLA_TTS_MODEL_PATH,
+                        Config.DEFAULT_VOICES_BY_LANGUAGE.get(lang_code, 'en')
+                    )
+            else:
+                # Local model path
+                model_path = os.path.join(
+                    Config.MOZILLA_TTS_MODEL_PATH, 
+                    Config.DEFAULT_VOICES_BY_LANGUAGE.get(lang_code, 'en')
+                )
+
         if self.model_loaded and self.current_model_lang == language_code:
             # Model for this language already loaded
             return
-        
+
         try:
             # Lazy import to avoid loading TTS dependencies until needed
             # Use Coqui TTS instead of mozilla-tts
@@ -238,6 +281,7 @@ class MozillaTTSProvider(TTSProvider):
 
             # Normalize language code
             lang_code = self._normalize_language_code(language_code)
+            logger.info(f"Loading TTS model from {model_path}")
             
             # Get the model path for this language
             model_path = os.path.join(
@@ -245,6 +289,20 @@ class MozillaTTSProvider(TTSProvider):
                 Config.DEFAULT_VOICES_BY_LANGUAGE.get(lang_code, 'en')
             )
             
+            # Try optimized TorchScript model if optimization enabled
+            if Config.USE_MODEL_OPTIMIZATION:
+                opt_model_file = os.path.join(Config.OPTIMIZED_MODEL_DIR, lang_code, 'model.ts')
+                if os.path.isfile(opt_model_file):
+                    try:
+                        import torch
+                        self.tts_model = torch.jit.load(opt_model_file)
+                        self.model_loaded = True
+                        self.current_model_lang = lang_code
+                        logger.info(f"Loaded optimized TorchScript model for {lang_code} from {opt_model_file}")
+                        return
+                    except Exception as e:
+                        logger.error(f"Error loading optimized TorchScript model: {e}")
+            # Proceed with standard model loading
             logger.info(f"Loading Coqui TTS model from {model_path}")
             
             # Try to initialize the synthesizer with Coqui TTS
@@ -276,6 +334,35 @@ class MozillaTTSProvider(TTSProvider):
             self.current_model_lang = None
             raise
     
+    def _load_adapter(self, user_id: str):
+        """Load LoRA adapter weights for a user if available"""
+        import torch
+        adapter_file = os.path.join(Config.LORA_ADAPTER_DIR, f"{user_id}.pt")
+        if os.path.isfile(adapter_file):
+            try:
+                state_dict = torch.load(adapter_file, map_location='cpu')
+                self.adapters[user_id] = state_dict
+                logger.info(f"Loaded LoRA adapter for user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to load adapter for {user_id}: {e}")
+        else:
+            # no adapter for this user
+            return
+
+    def _apply_adapter(self, user_id: str):
+        """Apply LoRA adapter weights to the loaded TTS model"""
+        adapter = self.adapters.get(user_id)
+        if not adapter or not self.tts_model:
+            return
+        try:
+            for name, delta in adapter.items():
+                if hasattr(self.tts_model, name):
+                    base = getattr(self.tts_model, name)
+                    base.data = base.data + delta.to(base.device)
+            logger.debug(f"Applied LoRA adapter for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error applying adapter for {user_id}: {e}")
+
     def synthesize_speech(self, 
                          text: str, 
                          language_code: str, 
@@ -325,6 +412,14 @@ class MozillaTTSProvider(TTSProvider):
             # Load the model if needed
             self._load_model(language_code)
             
+            # Before generating, inject per-user adapter if personalization model
+            user_id = getattr(request, 'user_id', None)
+            if user_id:
+                if user_id not in self.adapters:
+                    self._load_adapter(user_id)
+                if user_id in self.adapters:
+                    self._apply_adapter(user_id)
+
             # Generate the audio
             wav = self.tts_model.tts(text)
             
@@ -841,6 +936,12 @@ class AzureTTSProvider(TTSProvider):
         Returns:
             Dict[str, Any]: Dictionary containing audio data and metadata
         """
+        start_time = time.time()
+        input_text = ssml if ssml else text
+        text_length = len(input_text)
+        success = False
+        error_type = None
+        
         try:
             import azure.cognitiveservices.speech as speechsdk
             
@@ -897,6 +998,31 @@ class AzureTTSProvider(TTSProvider):
                 # Calculate the duration if available
                 duration = result.audio_duration.total_seconds() if hasattr(result, 'audio_duration') else 0
                 
+                # Calculate ML metrics
+                success = True
+                end_time = time.time()
+                duration_ms = (end_time - start_time) * 1000
+                
+                # Log metrics to ML monitor
+                self.ml_monitor.log_synthesis(
+                    provider="azure",
+                    language=language_code,
+                    duration_ms=duration_ms,
+                    text_length=text_length,
+                    success=True,
+                    metadata={
+                        "voice_id": voice_id,
+                        "speaking_rate": speaking_rate,
+                        "pitch": pitch,
+                        "audio_format": audio_format,
+                        "audio_duration_ms": duration * 1000 if duration else None,
+                        "used_ssml": ssml is not None or speaking_rate != 1.0 or pitch != 0.0,
+                    }
+                )
+                
+                # Update provider status
+                self.ml_monitor.update_provider_status("azure", True)
+                
                 return {
                     "audio_data": audio_data,
                     "audio_format": audio_format,
@@ -906,11 +1032,35 @@ class AzureTTSProvider(TTSProvider):
             else:
                 error_details = result.cancellation_details.error_details if hasattr(result, 'cancellation_details') else "Unknown error"
                 logger.error(f"Azure TTS synthesis failed: {error_details}")
+                error_type = "synthesis_error"
                 raise RuntimeError(f"Azure TTS synthesis failed: {error_details}")
                 
         except Exception as e:
+            error_type = type(e).__name__
             logger.error(f"Error synthesizing speech with Azure TTS: {str(e)}")
+            
+            # Update provider status on error
+            self.ml_monitor.update_provider_status("azure", False)
             raise
+        finally:
+            # Log even on failure
+            if not success:
+                end_time = time.time()
+                duration_ms = (end_time - start_time) * 1000
+                self.ml_monitor.log_synthesis(
+                    provider="azure",
+                    language=language_code,
+                    duration_ms=duration_ms,
+                    text_length=text_length,
+                    success=False,
+                    error_type=error_type,
+                    metadata={
+                        "voice_id": voice_id,
+                        "speaking_rate": speaking_rate,
+                        "pitch": pitch,
+                        "audio_format": audio_format
+                    }
+                )
     
     def synthesize_phoneme(self,
                           phoneme: str,
@@ -1306,6 +1456,10 @@ class TTSProviderFactory:
         Returns:
             TTSProvider: A TTS provider instance
         """
+        # Offline edge mode: use local Mozilla TTS provider exclusively
+        if Config.USE_OFFLINE_MODE:
+            logger.info("Offline mode enabled: using local Mozilla TTS provider")
+            return MozillaTTSProvider()
         # For fallback, always use AWS Polly if configured
         if fallback and Config.USE_FALLBACK_PROVIDER and Config.FALLBACK_TTS_PROVIDER == "aws" and Config.USE_AWS_POLLY:
             logger.info("Using AWS Polly as fallback TTS provider")

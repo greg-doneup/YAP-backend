@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: tts-canary
+  namespace: default
+spec:
+  hosts:
+  - tts-service.default.svc.cluster.local
+  http:
+  - route:
+    - destination:
+        host: tts-service
+        subset: stable
+      weight: 90  # initial stable traffic
+    - destination:
+        host: tts-service
+        subset: canary
+      weight: 10  # initial canary traffic

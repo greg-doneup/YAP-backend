@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "../token/YapToken.sol";
+import "../token/YAPToken.sol";
 
 /**
  * @title VestingBucket
@@ -15,7 +15,7 @@ contract VestingBucket is AccessControl, ReentrancyGuard, Pausable {
     bytes32 public constant ALLOCATOR_ROLE = keccak256("ALLOCATOR_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     
-    YapToken public token;
+    YAPToken public token;
     
     // Vesting parameters
     uint256 public cliffDuration = 7 days;
@@ -46,7 +46,7 @@ contract VestingBucket is AccessControl, ReentrancyGuard, Pausable {
      * @param _token The address of the YAP token contract
      */
     constructor(address _token) {
-        token = YapToken(_token);
+        token = YAPToken(_token);
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ALLOCATOR_ROLE, msg.sender);
@@ -147,7 +147,7 @@ contract VestingBucket is AccessControl, ReentrancyGuard, Pausable {
     }
     
     /**
-     * @dev Called by the YapToken contract before any token transfer
+     * @dev Called by the YAPToken contract before any token transfer
      * @param from The sender address
      * @param to The recipient address
      * @param amount The transfer amount

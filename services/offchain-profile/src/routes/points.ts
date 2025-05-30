@@ -1,36 +1,29 @@
 import express from "express";
 import { mongo } from "../mon/mongo";
 
-// Stub for auth middleware until it's properly injected in Docker build
+// Get user ID from the verified JWT token in the request
 const getUserIdFromRequest = (req: express.Request): string | undefined => {
-  return 'test-user-id';
-};
-
-const getWalletAddressesFromRequest = (req: express.Request) => {
-  return { 
-    sei: req.body.walletAddress || req.params.wallet || 'test-wallet',
-    eth: req.body.ethWalletAddress 
-  };
+  return (req as any).user?.sub;
 };
 
 const router = express.Router();
 
-/* PATCH /points/add  { walletAddress, amount } */
+/* PATCH /points/add  { userId, amount } */
 router.patch("/add", async (req, res, next) => {
   try {
     // Extract information from the authenticated request
-    const { sei: userWallet } = getWalletAddressesFromRequest(req);
-    const targetWallet = req.body.walletAddress;
+    const userIdFromToken = getUserIdFromRequest(req);
+    const targetUserId = req.body.userId;
     const amount = req.body.amount;
     
-    // Only admins can add points to other wallets
-    const isOwnWallet = userWallet === targetWallet;
+    // Only admins can add points to other users
+    const isOwnProfile = userIdFromToken === targetUserId;
     const isAdmin = (req as any).user?.roles?.includes('admin');
     
-    if (!isOwnWallet && !isAdmin) {
+    if (!isOwnProfile && !isAdmin) {
       return res.status(403).json({
         error: 'forbidden',
-        message: 'You can only add points to your own wallet'
+        message: 'You can only add points to your own profile'
       });
     }
     
@@ -42,16 +35,16 @@ router.patch("/add", async (req, res, next) => {
       });
     }
     
-    // Use the validated wallet address
-    const walletToUpdate = isAdmin ? targetWallet : userWallet;
+    // Use the validated user ID
+    const userIdToUpdate = isAdmin ? targetUserId : userIdFromToken;
     
     // Add XP points using MongoDB
-    const updatedProfile = await mongo.addXP(walletToUpdate, Number(amount));
+    const updatedProfile = await mongo.addXP(userIdToUpdate, Number(amount));
     
     if (!updatedProfile) {
       return res.status(404).json({
         error: 'profile_not_found',
-        message: 'Profile not found for the specified wallet'
+        message: 'Profile not found for the specified user'
       });
     }
     

@@ -22,7 +22,7 @@ async function main() {
     // Load compiled contract (adjust path as needed)
     const artifact = JSON.parse(
       fs.readFileSync(
-        path.join(__dirname, '../artifacts/contracts/YapToken.sol/YapToken.json'),
+        path.join(__dirname, '../artifacts/contracts/YAPToken.sol/YAPToken.json'),
         'utf8'
       )
     );

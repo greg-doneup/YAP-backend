@@ -7,6 +7,7 @@ import progressRoutes from "./routes/progress";
 import lessonRoutes from "./routes/lessons";
 import healthRoutes from "./routes/health";
 import { closeConnection } from "./clients/mongodb";
+import { learningSecurityMiddleware } from "./middleware/security";
 
 // Load environment variables
 dotenv.config();
@@ -15,16 +16,37 @@ dotenv.config();
 export const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Middleware
-app.use(express.json());
-app.use(cors());
+// Apply security middleware
+app.use(learningSecurityMiddleware.learningSecurityHeaders());
+app.use(learningSecurityMiddleware.learningRateLimit());
+app.use(learningSecurityMiddleware.validateLearningData());
+app.use(learningSecurityMiddleware.auditLearningOperations());
+
+// Standard middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
 
 // Routes
-app.use("/quiz", quizRoutes);
-app.use("/daily", dailyRoutes);
-app.use("/progress", progressRoutes);
-app.use("/lessons", lessonRoutes);
+app.use("/quiz", learningSecurityMiddleware.enforceLearningOwnership(), quizRoutes);
+app.use("/daily", learningSecurityMiddleware.enforceLearningOwnership(), dailyRoutes);
+app.use("/progress", learningSecurityMiddleware.enforceLearningOwnership(), progressRoutes);
+app.use("/lessons", learningSecurityMiddleware.enforceLearningOwnership(), lessonRoutes);
 app.use("/health", healthRoutes);
+
+// Security metrics endpoint
+app.get("/security/metrics", async (_req, res) => {
+  try {
+    const metrics = await learningSecurityMiddleware.getSecurityMetrics();
+    res.json(metrics);
+  } catch (error) {
+    console.error('Failed to get security metrics:', error);
+    res.status(500).json({ error: 'Failed to retrieve security metrics' });
+  }
+});
 
 // Health check endpoint for Kubernetes
 app.get("/healthz", (_req, res) => {

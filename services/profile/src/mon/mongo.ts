@@ -8,6 +8,11 @@ export interface Profile {
   initial_language_to_learn: string;
   createdAt: string;
   updatedAt: string;
+  // Optional encrypted wallet data
+  encryptedPrivateKey?: string;
+  walletAddress?: string;
+  keyCreatedAt?: string;
+  keyLastAccessed?: string;
 }
 
 // Define Profile document interface
@@ -20,7 +25,12 @@ const ProfileSchema: Schema = new Schema({
   name: { type: String, required: true },
   initial_language_to_learn: { type: String, required: true },
   createdAt: { type: String, default: () => new Date().toISOString() },
-  updatedAt: { type: String, default: () => new Date().toISOString() }
+  updatedAt: { type: String, default: () => new Date().toISOString() },
+  // Optional encrypted wallet fields
+  encryptedPrivateKey: { type: String, select: false }, // Never select by default for security
+  walletAddress: { type: String, index: true },
+  keyCreatedAt: { type: String },
+  keyLastAccessed: { type: String }
 }, { 
   collection: 'profiles' 
 });

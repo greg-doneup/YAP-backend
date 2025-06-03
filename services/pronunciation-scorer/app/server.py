@@ -24,6 +24,13 @@ from app.cache import ScoringCache
 from app.storage import ScoringStorage
 from app.language_detector import LanguageDetector
 
+# Import security middleware
+from app.security import (
+    PronunciationSecurityInterceptor, 
+    create_pronunciation_security_interceptor, 
+    get_pronunciation_security_metrics
+)
+
 # Import MongoDB storage if enabled
 if Config.MONGODB_ENABLED:
     from app.mongodb_storage import MongoDBScoringStorage, MongoDBScoringCache
@@ -314,15 +321,28 @@ class PronunciationScorerService(pronunciation_scorer_pb2_grpc.PronunciationScor
 
 def serve():
     """
-    Start the gRPC server
+    Start the gRPC server with security interceptors
     """
     # Start Prometheus metrics server
     metrics_port = Config.METRICS_PORT
     start_http_server(metrics_port)
     logger.info(f"Metrics server started on port {metrics_port}")
     
-    # Start gRPC server
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # Create security interceptor
+    try:
+        security_interceptor = create_pronunciation_security_interceptor()
+        logger.info("Security interceptor created for pronunciation scorer")
+    except Exception as e:
+        logger.error(f"Failed to create security interceptor: {e}")
+        security_interceptor = None
+    
+    # Start gRPC server with security
+    interceptors = [security_interceptor] if security_interceptor else []
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        interceptors=interceptors
+    )
+    
     pronunciation_scorer_pb2_grpc.add_PronunciationScorerServiceServicer_to_server(
         PronunciationScorerService(), server
     )
@@ -330,7 +350,9 @@ def serve():
     server_address = f"[::]:{Config.GRPC_PORT}"
     server.add_insecure_port(server_address)
     server.start()
-    logger.info(f"Pronunciation scorer service listening on {server_address}")
+    
+    security_status = "enabled" if security_interceptor else "disabled"
+    logger.info(f"Pronunciation scorer service listening on {server_address} (security: {security_status})")
     
     # Keep the server running
     try:

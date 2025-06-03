@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Import application modules
 from app.server import TTSService
 from app.config import Config
+from app.security import TTSSecurityInterceptor
 from proto import tts_pb2_grpc
 
 def main():
@@ -36,9 +37,18 @@ def main():
         else:
             logger.info("Metrics collection is disabled")
         
-        # Start gRPC server
+        # Initialize security interceptor
+        security_interceptor = TTSSecurityInterceptor()
+        logger.info("Security interceptor initialized")
+        
+        # Start gRPC server with security interceptor
         grpc_port = Config.GRPC_PORT
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=10),
+            interceptors=[security_interceptor]
+        )
+        
+        # Add TTS service with security
         tts_pb2_grpc.add_TTSServiceServicer_to_server(
             TTSService(), server
         )
@@ -47,8 +57,20 @@ def main():
         server.add_insecure_port(server_address)
         server.start()
         
-        logger.info(f"TTS service started successfully on port {grpc_port}")
+        logger.info(f"TTS service started successfully on port {grpc_port} with security enabled")
         logger.info(f"Using TTS provider: {Config.TTS_PROVIDER}")
+        logger.info("Security features: rate limiting, content validation, deepfake detection, audit logging")
+        
+        # Keep the server running
+        try:
+            server.wait_for_termination()
+        except KeyboardInterrupt:
+            logger.info("Server stopping due to keyboard interrupt...")
+            server.stop(0)
+    
+    except Exception as e:
+        logger.error(f"Error starting TTS service: {str(e)}")
+        raise
         
         # Keep the server running
         try:

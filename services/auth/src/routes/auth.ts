@@ -4,6 +4,8 @@ import crypto from "crypto";
 import { saveRefreshToken, validateRefreshToken, deleteRefreshToken, deleteSpecificRefreshToken } from "../utils/database";
 import { requireAuth } from "../middleware/requireAuth";
 import axios from "axios";
+import { SecurityValidator } from "../utils/securityValidator";
+import { auditLogger, SecurityEventType } from "../utils/auditLogger";
 
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
 const APP_REFRESH_SECRET = process.env.APP_REFRESH_SECRET || APP_JWT_SECRET + '_refresh';
@@ -164,33 +166,67 @@ const createUserProfile = async (userId: string, email: string, languageToLearn:
   }
 };
 
-/* ── POST /auth/wallet (now handles initial signup) ────────────────────────
+/* ── POST /auth/wallet/signup (handles initial signup from waitlist) ────────
    Body: { name, email, language_to_learn }
    Resp: { token, refreshToken, userId }
 */
-router.post("/wallet", async (req, res) => {
+router.post("/wallet/signup", async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.get('User-Agent') || 'unknown';
+  
   try {
     const { name, email, language_to_learn } = req.body;
     
+    // Enhanced validation with security
+    const validation = SecurityValidator.validateAuthRequest({ email, passphrase: 'dummy' });
+    if (!validation.isValid) {
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.INVALID_REQUEST,
+        email,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { errors: validation.errors, endpoint: 'signup' }
+      });
+      return res.status(400).json({ message: validation.errors.join(', ') });
+    }
+    
     // Validate required fields
     if (!email) {
+      auditLogger.logFailedAttempt(clientIp, email || 'unknown', 'missing_email');
       return res.status(400).json({ message: "email required" });
     }
     if (!name) {
+      auditLogger.logFailedAttempt(clientIp, email, 'missing_name');
       return res.status(400).json({ message: "name required" });
     }
     if (!language_to_learn) {
+      auditLogger.logFailedAttempt(clientIp, email, 'missing_language');
       return res.status(400).json({ message: "language_to_learn required" });
     }
+
+    // Sanitize inputs
+    const sanitizedEmail = SecurityValidator.sanitizeInput(email);
+    const sanitizedName = SecurityValidator.sanitizeInput(name);
+    const sanitizedLanguage = SecurityValidator.sanitizeInput(language_to_learn);
 
     // Check email uniqueness
     try {
       // if this call succeeds, email already exists
-      await axios.get(`${PROFILE_SERVICE_URL}/profile/email/${encodeURIComponent(email)}`);
+      await axios.get(`${PROFILE_SERVICE_URL}/profile/email/${encodeURIComponent(sanitizedEmail)}`);
+      auditLogger.logFailedAttempt(clientIp, sanitizedEmail, 'email_already_exists');
       return res.status(409).json({ message: "Email already registered" });
     } catch (err: any) {
       if (err.response?.status !== 404) {
         console.error('Error checking email uniqueness:', err.message);
+        auditLogger.logSecurityEvent({
+          eventType: SecurityEventType.SUSPICIOUS_ACTIVITY,
+          email: sanitizedEmail,
+          clientIp,
+          userAgent,
+          success: false,
+          details: { error: 'email_check_failed', message: err.message }
+        });
         return res.status(500).json({ message: 'Error validating email uniqueness' });
       }
       // 404 means email not found, proceed
@@ -204,14 +240,37 @@ router.post("/wallet", async (req, res) => {
     
     // Create user profile
     try {
-      await createUserProfile(userId, email, language_to_learn, name);
+      await createUserProfile(userId, sanitizedEmail, sanitizedLanguage, sanitizedName);
     } catch (error: any) {
       console.error('Failed to create user profile:', error);
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.SUSPICIOUS_ACTIVITY,
+        email: sanitizedEmail,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { error: 'profile_creation_failed', message: error.message }
+      });
       return res.status(500).json({
         message: "Failed to create user profile",
         details: error.message
       });
     }
+    
+    // Log successful signup
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.LOGIN_SUCCESS,
+      email: sanitizedEmail,
+      userId,
+      clientIp,
+      userAgent,
+      success: true,
+      details: { 
+        action: 'signup', 
+        method: 'wallet_signup',
+        language: sanitizedLanguage
+      }
+    });
     
     res.json({
       token: accessToken,
@@ -220,8 +279,122 @@ router.post("/wallet", async (req, res) => {
     });
   } catch (err: any) {
     console.error("Signup error:", err.message);
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.LOGIN_FAILURE,
+      email: req.body?.email || 'unknown',
+      clientIp,
+      userAgent,
+      success: false,
+      details: { action: 'signup', error: 'signup_failed', message: err.message }
+    });
     res.status(500).json({
       message: "Signup failed",
+      details: err.message
+    });
+  }
+});
+
+/* ── POST /auth/wallet (handles wallet authentication for existing users) ───
+   Body: { userId, walletAddress, ethWalletAddress, signupMethod }
+   Resp: { token, refreshToken, userId }
+*/
+router.post("/wallet", async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.get('User-Agent') || 'unknown';
+  
+  try {
+    const { userId, walletAddress, ethWalletAddress, signupMethod } = req.body;
+    
+    // Enhanced validation with security
+    const validation = SecurityValidator.validateAuthRequest({ email: userId, passphrase: 'dummy' });
+    if (!validation.isValid) {
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.INVALID_REQUEST,
+        email: userId,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { errors: validation.errors, endpoint: 'wallet_auth' }
+      });
+      return res.status(400).json({ message: validation.errors.join(', ') });
+    }
+    
+    // Validate required fields
+    if (!userId) {
+      auditLogger.logFailedAttempt(clientIp, 'unknown', 'missing_userId');
+      return res.status(400).json({ message: "userId required" });
+    }
+
+    // For wallet auth, userId is actually the email
+    const email = SecurityValidator.sanitizeInput(userId);
+
+    // Check if user exists by email
+    let userProfile;
+    try {
+      const response = await axios.get(`${PROFILE_SERVICE_URL}/profile/email/${encodeURIComponent(email)}`);
+      userProfile = response.data;
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        auditLogger.logFailedAttempt(clientIp, email, 'user_not_found');
+        return res.status(404).json({ message: "User not found. Please complete account setup first." });
+      }
+      console.error('Error fetching user profile:', err.message);
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.SUSPICIOUS_ACTIVITY,
+        email,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { error: 'profile_fetch_failed', message: err.message }
+      });
+      return res.status(500).json({ message: 'Error validating user' });
+    }
+
+    // Check if user has completed wallet setup
+    if (!userProfile.encrypted_mnemonic) {
+      auditLogger.logFailedAttempt(clientIp, email, 'wallet_setup_incomplete');
+      return res.status(400).json({ message: "Wallet setup not completed. Please complete setup first." });
+    }
+
+    // Generate tokens for the existing user
+    const { accessToken, refreshToken } = await generateTokens(userProfile.userId);
+    
+    // Log successful authentication
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.WALLET_AUTH_SUCCESS,
+      email,
+      clientIp,
+      userAgent,
+      success: true,
+      details: { 
+        method: 'wallet_auth', 
+        userId: userProfile.userId,
+        walletAddress: SecurityValidator.sanitizeInput(walletAddress || ''),
+        ethWalletAddress: SecurityValidator.sanitizeInput(ethWalletAddress || '')
+      }
+    });
+    
+    res.json({
+      token: accessToken,
+      refreshToken,
+      userId: userProfile.userId,
+      email: userProfile.email,
+      walletAddress,
+      ethWalletAddress
+    });
+  } catch (err: any) {
+    const errorEmail = req.body?.userId || 'unknown';
+    console.error("Wallet authentication error:", err.message);
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.WALLET_AUTH_FAILURE,
+      email: errorEmail,
+      clientIp,
+      userAgent,
+      success: false,
+      details: { error: 'wallet_auth_failed', message: err.message }
+    });
+    res.status(500).json({
+      message: "Wallet authentication failed",
       details: err.message
     });
   }
@@ -232,10 +405,14 @@ router.post("/wallet", async (req, res) => {
    Resp: { token, refreshToken }
 */
 router.post("/refresh", async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.get('User-Agent') || 'unknown';
+  
   try {
     const { refreshToken } = req.body;
     
     if (!refreshToken) {
+      auditLogger.logFailedAttempt(clientIp, 'unknown', 'missing_refresh_token');
       return res.status(400).json({ message: "Refresh token required" });
     }
     
@@ -243,6 +420,14 @@ router.post("/refresh", async (req, res) => {
     try {
       decoded = jwt.verify(refreshToken, APP_REFRESH_SECRET) as jwt.JwtPayload;
     } catch (err: any) {
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.TOKEN_REFRESH,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { error: err.name === 'TokenExpiredError' ? 'token_expired' : 'invalid_token' }
+      });
+      
       if (err.name === 'TokenExpiredError') {
         return res.status(401).json({ message: "Refresh token has expired" });
       }
@@ -250,6 +435,14 @@ router.post("/refresh", async (req, res) => {
     }
     
     if (decoded.type !== 'refresh') {
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.SUSPICIOUS_ACTIVITY,
+        userId: decoded.sub,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { error: 'invalid_token_type', providedType: decoded.type }
+      });
       return res.status(401).json({ message: "Invalid token type" });
     }
     
@@ -257,6 +450,14 @@ router.post("/refresh", async (req, res) => {
     
     const isValid = await validateRefreshToken(userId, refreshToken);
     if (!isValid) {
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.TOKEN_REFRESH,
+        userId,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { error: 'revoked_or_invalid_token' }
+      });
       return res.status(401).json({ message: "Invalid or revoked refresh token" });
     }
     
@@ -266,6 +467,16 @@ router.post("/refresh", async (req, res) => {
     // Generate new tokens
     const tokens = await generateTokens(userId);
     
+    // Log successful token refresh
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.TOKEN_REFRESH,
+      userId,
+      clientIp,
+      userAgent,
+      success: true,
+      details: { message: 'token_refreshed_successfully' }
+    });
+    
     res.json({ 
       token: tokens.accessToken, 
       refreshToken: tokens.refreshToken,
@@ -273,6 +484,13 @@ router.post("/refresh", async (req, res) => {
     });
   } catch (err: any) {
     console.error("Token refresh error:", err);
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.TOKEN_REFRESH,
+      clientIp,
+      userAgent,
+      success: false,
+      details: { error: 'refresh_failed', message: err.message }
+    });
     res.status(500).json({ 
       message: "Token refresh failed", 
       details: err.message 
@@ -285,12 +503,34 @@ router.post("/refresh", async (req, res) => {
    Resp: { message: "Successfully logged out" }
 */
 router.post("/logout", requireAuth(APP_JWT_SECRET), async (req: any, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.get('User-Agent') || 'unknown';
+  const userId = req.user.sub;
+  
   try {
-    const userId = req.user.sub;
     await deleteRefreshToken(userId);
+    
+    // Log successful logout
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.TOKEN_REVOKE,
+      userId,
+      clientIp,
+      userAgent,
+      success: true,
+      details: { action: 'logout', message: 'all_refresh_tokens_invalidated' }
+    });
+    
     res.json({ message: "Successfully logged out" });
   } catch (err: any) {
     console.error("Logout error:", err);
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.TOKEN_REVOKE,
+      userId,
+      clientIp,
+      userAgent,
+      success: false,
+      details: { action: 'logout', error: 'logout_failed', message: err.message }
+    });
     res.status(500).json({ 
       message: "Logout failed", 
       details: err.message 
@@ -303,6 +543,20 @@ router.post("/logout", requireAuth(APP_JWT_SECRET), async (req: any, res) => {
    Resp: { userId }
 */
 router.get("/validate", requireAuth(APP_JWT_SECRET), (req: any, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.get('User-Agent') || 'unknown';
+  const userId = req.user.sub;
+  
+  // Log token validation
+  auditLogger.logSecurityEvent({
+    eventType: SecurityEventType.PROFILE_ACCESS,
+    userId,
+    clientIp,
+    userAgent,
+    success: true,
+    details: { action: 'token_validation', endpoint: 'validate' }
+  });
+  
   res.json({ 
     userId: req.user.sub
   });
@@ -314,11 +568,15 @@ router.get("/validate", requireAuth(APP_JWT_SECRET), (req: any, res) => {
    Resp: { message: "Token revoked" }
 */
 router.post("/revoke", requireAuth(APP_JWT_SECRET), async (req: any, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  const userAgent = req.get('User-Agent') || 'unknown';
+  const userId = req.user.sub;
+  
   try {
-    const userId = req.user.sub;
     const { refreshToken } = req.body;
     
     if (!refreshToken) {
+      auditLogger.logFailedAttempt(clientIp, userId, 'missing_refresh_token_for_revoke');
       return res.status(400).json({ message: "Refresh token required" });
     }
     
@@ -326,21 +584,65 @@ router.post("/revoke", requireAuth(APP_JWT_SECRET), async (req: any, res) => {
     try {
       decoded = jwt.verify(refreshToken, APP_REFRESH_SECRET) as jwt.JwtPayload;
       if (decoded.sub !== userId) {
+        auditLogger.logSecurityEvent({
+          eventType: SecurityEventType.SUSPICIOUS_ACTIVITY,
+          userId,
+          clientIp,
+          userAgent,
+          success: false,
+          details: { 
+            action: 'token_revoke_attempt', 
+            error: 'token_ownership_mismatch',
+            attemptedUserId: decoded.sub 
+          }
+        });
         return res.status(403).json({ message: "Cannot revoke token belonging to another user" });
       }
     } catch (err) {
       // We'll still try to delete it from storage even if verification fails
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.TOKEN_REVOKE,
+        userId,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { action: 'token_revoke', error: 'invalid_token_verification' }
+      });
     }
     
     const deleted = await deleteSpecificRefreshToken(userId, refreshToken);
     
     if (deleted) {
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.TOKEN_REVOKE,
+        userId,
+        clientIp,
+        userAgent,
+        success: true,
+        details: { action: 'specific_token_revoke', message: 'token_revoked_successfully' }
+      });
       res.json({ message: "Token revoked" });
     } else {
+      auditLogger.logSecurityEvent({
+        eventType: SecurityEventType.TOKEN_REVOKE,
+        userId,
+        clientIp,
+        userAgent,
+        success: false,
+        details: { action: 'specific_token_revoke', error: 'token_not_found' }
+      });
       res.status(404).json({ message: "Token not found" });
     }
   } catch (err: any) {
     console.error("Token revocation error:", err);
+    auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.TOKEN_REVOKE,
+      userId,
+      clientIp,
+      userAgent,
+      success: false,
+      details: { action: 'token_revoke', error: 'revocation_failed', message: err.message }
+    });
     res.status(500).json({ 
       message: "Token revocation failed", 
       details: err.message 

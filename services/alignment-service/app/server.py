@@ -20,6 +20,9 @@ from app.cache import AlignmentCache
 from app.storage import S3Storage
 from app.config import Config
 
+# Import security middleware
+from app.security import AlignmentSecurityInterceptor, create_security_interceptor, get_security_metrics
+
 # Import MongoDB storage if enabled
 if Config.MONGODB_ENABLED:
     from app.mongodb_storage import MongoDBStorage, MongoDBCache
@@ -146,16 +149,19 @@ class AlignmentService(alignment_pb2_grpc.AlignmentServiceServicer):
     
     def HealthCheck(self, request, context):
         """
-        Health check endpoint
+        Health check endpoint with security status
         """
         try:
             # Check if we can load a model - indicates system health
             test_model = "en"
             self.engine._ensure_model_loaded(test_model)
             
+            # Get security metrics
+            security_metrics = get_security_metrics()
+            
             return alignment_pb2.HealthCheckResponse(
                 status=True,
-                message="Service is healthy"
+                message=f"Service is healthy. Security: {security_metrics.get('blocked_requests', 0)} blocked requests"
             )
         except Exception as e:
             logger.error(f"Health check failed: {str(e)}")
@@ -166,17 +172,32 @@ class AlignmentService(alignment_pb2_grpc.AlignmentServiceServicer):
 
 def serve():
     """
-    Start the gRPC server
+    Start the gRPC server with security interceptors
     """
     # Start Prometheus metrics server
     start_http_server(Config.METRICS_PORT)
     logger.info(f"Prometheus metrics server started on port {Config.METRICS_PORT}")
     
+    # Start security metrics server
+    try:
+        from app.metrics_server import run_metrics_server
+        run_metrics_server(8001)
+    except Exception as e:
+        logger.warning(f"Could not start security metrics server: {e}")
+    
     # Display configuration
     logger.info(f"Starting with configuration: {Config.as_dict()}")
     
-    # Create server with appropriate number of workers
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # Create security interceptor
+    security_interceptor = create_security_interceptor()
+    logger.info("Security interceptor created")
+    
+    # Create server with security interceptors
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=10),
+        interceptors=[security_interceptor]
+    )
+    
     alignment_pb2_grpc.add_AlignmentServiceServicer_to_server(
         AlignmentService(), server
     )
@@ -184,7 +205,7 @@ def serve():
     server_address = f"[::]:{Config.GRPC_PORT}"
     server.add_insecure_port(server_address)
     server.start()
-    logger.info(f"Alignment service listening on {server_address}")
+    logger.info(f"Alignment service listening on {server_address} with security enabled")
     
     # Keep the server running
     try:

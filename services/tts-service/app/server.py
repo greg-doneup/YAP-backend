@@ -11,6 +11,7 @@ from kafka import KafkaProducer
 from app.ml_monitoring import MODEL_CACHE_HITS, MODEL_CACHE_MISSES
 from app.feature_store import get_feature_store
 from app.personalization import get_personalization_engine
+from app.security import TTSSecurityMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -39,7 +40,12 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
     """
     
     def __init__(self):
-        logger.info("Initializing TTSService")
+        logger.info("Initializing TTSService with security middleware")
+        
+        # Initialize security middleware
+        self.security = TTSSecurityMiddleware()
+        logger.info("Security middleware initialized for TTS service")
+        
         # optionally start HTTP feedback API
         if Config.USE_HTTP_FEEDBACK_API:
             from threading import Thread
@@ -99,6 +105,35 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
         """
         Generates speech from text in specified language and voice.
         """
+        try:
+            # Apply security validation
+            client_ip = self._get_client_ip(context)
+            security_context = {
+                'client_ip': client_ip,
+                'method': 'GenerateSpeech',
+                'text': request.text,
+                'language_code': request.language_code,
+                'voice_id': getattr(request, 'voice_id', None),
+                'user_id': getattr(request, 'user_id', None)
+            }
+            
+            # Validate and log security event
+            if not self.security.validate_request(security_context):
+                logger.warning(f"Security validation failed for GenerateSpeech from {client_ip}")
+                context.set_code(grpc.StatusCode.PERMISSION_DENIED)
+                context.set_details("Request blocked by security policy")
+                return tts_pb2.TTSResponse(
+                    success=False,
+                    message="Request blocked by security policy"
+                )
+                
+            # Log security event
+            self.security.log_security_event('tts_request', 'LOW', security_context)
+            
+        except Exception as security_error:
+            logger.error(f"Security middleware error: {str(security_error)}")
+            # Continue with request but log the security failure
+            
         # Dynamic routing: adjust speaking rate for mobile and route high-MOS users to neural model
         if Config.USE_DYNAMIC_ROUTING:
             # Device-aware tuning from user_params
@@ -341,6 +376,35 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
         """
         Generates audio sample for a specific phoneme.
         """
+        try:
+            # Apply security validation
+            client_ip = self._get_client_ip(context)
+            security_context = {
+                'client_ip': client_ip,
+                'method': 'GeneratePhonemeAudio',
+                'phoneme': request.phoneme,
+                'word': request.word,
+                'language_code': request.language_code,
+                'voice_id': getattr(request, 'voice_id', None)
+            }
+            
+            # Validate and log security event
+            if not self.security.validate_request(security_context):
+                logger.warning(f"Security validation failed for GeneratePhonemeAudio from {client_ip}")
+                context.set_code(grpc.StatusCode.PERMISSION_DENIED)
+                context.set_details("Request blocked by security policy")
+                return tts_pb2.TTSResponse(
+                    success=False,
+                    message="Request blocked by security policy"
+                )
+                
+            # Log security event
+            self.security.log_security_event('phoneme_request', 'LOW', security_context)
+            
+        except Exception as security_error:
+            logger.error(f"Security middleware error: {str(security_error)}")
+            # Continue with request but log the security failure
+            
         # Start service-level benchmark
         self.benchmarker.start_benchmark(
             provider="service", 
@@ -556,6 +620,29 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
     def SubmitFeedback(self, request, context):
         """Handles user feedback submissions by publishing to Kafka topic"""
         try:
+            # Apply security validation
+            client_ip = self._get_client_ip(context)
+            security_context = {
+                'client_ip': client_ip,
+                'method': 'SubmitFeedback',
+                'user_id': request.user_id,
+                'request_id': request.request_id,
+                'feedback_score': request.feedback_score
+            }
+            
+            # Validate and log security event
+            if not self.security.validate_request(security_context):
+                logger.warning(f"Security validation failed for SubmitFeedback from {client_ip}")
+                context.set_code(grpc.StatusCode.PERMISSION_DENIED)
+                context.set_details("Request blocked by security policy")
+                return tts_pb2.FeedbackResponse(
+                    success=False,
+                    message="Request blocked by security policy"
+                )
+                
+            # Log security event
+            self.security.log_security_event('feedback_submission', 'LOW', security_context)
+            
             event = {
                 "user_id": request.user_id,
                 "request_id": request.request_id,
@@ -568,6 +655,32 @@ class TTSService(tts_pb2_grpc.TTSServiceServicer):
                 Config.KAFKA_TOPIC_FEEDBACK,
                 value=event
             )
+            
+            return tts_pb2.FeedbackResponse(
+                success=True,
+                message="Feedback submitted successfully"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in SubmitFeedback: {str(e)}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            return tts_pb2.FeedbackResponse(
+                success=False,
+                message=f"Error: {str(e)}"
+            )
+    
+    def _get_client_ip(self, context):
+        """Extract client IP from gRPC context"""
+        try:
+            peer_identity = context.peer()
+            if peer_identity and 'ipv4:' in peer_identity:
+                return peer_identity.split('ipv4:')[1].split(':')[0]
+            elif peer_identity and 'ipv6:' in peer_identity:
+                return peer_identity.split('ipv6:')[1].split('%')[0]
+            return "unknown"
+        except Exception:
+            return "unknown"
             self.producer.flush()
             return tts_pb2.FeedbackResponse(success=True, message="Feedback submitted")
         except Exception as e:

@@ -5,30 +5,87 @@ import { requireAuth, getUserIdFromRequest } from './shared/auth/authMiddleware'
 import { profileValidator } from './validators';
 import { profileController } from './controllers';
 import { connectToDatabase } from './mon/mongo';
+import { profileSecurityMiddleware } from './middleware/security';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET!;
+
+// Add security middleware to app locals
+app.locals.profileSecurity = profileSecurityMiddleware;
 
 // Initialize MongoDB connection
 connectToDatabase()
   .then(() => console.log('MongoDB connection initialized'))
   .catch(err => console.error('MongoDB connection failed:', err));
 
-app.use(cors());
-app.use(express.json());
-app.use(morgan('dev'));
+// Enhanced CORS with security
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  'http://localhost:8100', 
+  'http://localhost:3000', 
+  'http://localhost:4200'
+];
 
-// Apply authentication middleware to all profile routes
+app.use(cors({
+  origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
+// Security headers
+app.use(profileSecurityMiddleware.profileSecurityHeaders());
+
+// Basic middleware
+app.use(express.json({ limit: '1mb' })); // Limit request size
+app.use(morgan('combined')); // More detailed logging
+
+// Apply enhanced security to profile routes
 app.use('/profile', 
+    profileSecurityMiddleware.profileRateLimit(30, 5), // 30 requests per 5 minutes
     requireAuth(APP_JWT_SECRET),
+    profileSecurityMiddleware.enforceProfileOwnership(),
+    profileSecurityMiddleware.validateProfileData(),
+    profileSecurityMiddleware.auditProfileChanges(),
     profileValidator,
     profileController
 );
 
-// Health check endpoint
+// Security monitoring endpoint
+app.get('/profile/security/metrics', requireAuth(APP_JWT_SECRET), async (req, res) => {
+  try {
+    // Only allow admin access to security metrics
+    const user = (req as any).user;
+    if (!user?.roles?.includes('admin')) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const metrics = await profileSecurityMiddleware.getSecurityMetrics();
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get security metrics' });
+  }
+});
+
+// Enhanced health check endpoint
 app.get('/healthz', (_, res) => {
-  res.json({ status: 'ok', service: 'profile' });
+  res.json({ 
+    status: 'ok', 
+    service: 'profile',
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
+    security_features: [
+      'rate_limiting',
+      'data_validation',
+      'ownership_enforcement',
+      'audit_logging',
+      'xss_protection'
+    ]
+  });
 });
 
 // Error handling middleware

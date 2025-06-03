@@ -1,6 +1,7 @@
 import express from 'express';
 require('dotenv').config();
 import authRoutes from './routes/auth';
+import { securityMiddleware } from './middleware/security';
 
 // Ensure required environment variables exist
 if (!process.env.APP_JWT_SECRET) {
@@ -13,26 +14,71 @@ const app = express();
 export { app }; // Export for testing
 const PORT = process.env.PORT || 8080;
 
-// Middleware
-app.use(express.json());
+// Add security middleware instance to app locals for access in routes
+app.locals.securityMiddleware = securityMiddleware;
 
-// Enable CORS
+// Security middleware (should be applied first)
+app.use(securityMiddleware.securityHeaders());
+
+// Basic middleware
+app.use(express.json({ limit: '10mb' })); // Limit request size for security
+
+// Enhanced CORS with security considerations
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+    'http://localhost:8100', 
+    'http://localhost:3000', 
+    'http://localhost:4200'
+  ];
+  
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
 });
 
-// Routes
-app.use('/auth', authRoutes);
+// Apply security middleware to routes
+app.use('/auth', 
+  securityMiddleware.rateLimit(50, 15), // 50 requests per 15 minutes
+  securityMiddleware.trackFailedAuth(),
+  securityMiddleware.validateInput(),
+  authRoutes
+);
 
-// Health check endpoint
+// Security monitoring endpoint
+app.get('/auth/security/metrics', async (req, res) => {
+  try {
+    const metrics = await securityMiddleware.getSecurityMetrics();
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get security metrics' });
+  }
+});
+
+// Enhanced health check endpoint
 app.get('/healthz', (req, res) => {
-  res.json({ status: 'ok', service: 'auth-service' });
+  res.json({ 
+    status: 'ok', 
+    service: 'auth-service',
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
+    security_features: [
+      'rate_limiting',
+      'failed_auth_tracking',
+      'input_validation',
+      'security_headers',
+      'audit_logging'
+    ]
+  });
 });
 
 // Error handling middleware

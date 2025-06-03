@@ -1,11 +1,14 @@
 /**
- * Simple in-memory storage for refresh tokens
- * In a production environment, this would be replaced with a proper database
+ * Database utilities for the auth service
+ * This file now serves as a facade that delegates to the MongoDB implementation
  */
 
-// In-memory storage for refresh tokens
-// Format: { userId: Set<refreshToken> }
-const refreshTokenStore: Record<string, Set<string>> = {};
+import {
+  saveRefreshToken as mongoSaveRefreshToken,
+  validateRefreshToken as mongoValidateRefreshToken,
+  deleteRefreshToken as mongoDeleteRefreshToken,
+  deleteSpecificRefreshToken as mongoDeleteSpecificRefreshToken
+} from './mongodb';
 
 /**
  * Save a refresh token for a user
@@ -13,10 +16,7 @@ const refreshTokenStore: Record<string, Set<string>> = {};
  * @param refreshToken The refresh token to save
  */
 export async function saveRefreshToken(userId: string, refreshToken: string): Promise<void> {
-  if (!refreshTokenStore[userId]) {
-    refreshTokenStore[userId] = new Set();
-  }
-  refreshTokenStore[userId].add(refreshToken);
+  return mongoSaveRefreshToken(userId, refreshToken);
 }
 
 /**
@@ -26,10 +26,7 @@ export async function saveRefreshToken(userId: string, refreshToken: string): Pr
  * @returns True if the token is valid, false otherwise
  */
 export async function validateRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
-  if (!refreshTokenStore[userId]) {
-    return false;
-  }
-  return refreshTokenStore[userId].has(refreshToken);
+  return mongoValidateRefreshToken(userId, refreshToken);
 }
 
 /**
@@ -37,7 +34,7 @@ export async function validateRefreshToken(userId: string, refreshToken: string)
  * @param userId The user ID
  */
 export async function deleteRefreshToken(userId: string): Promise<void> {
-  delete refreshTokenStore[userId];
+  return mongoDeleteRefreshToken(userId);
 }
 
 /**
@@ -47,16 +44,5 @@ export async function deleteRefreshToken(userId: string): Promise<void> {
  * @returns True if token was found and deleted, false otherwise
  */
 export async function deleteSpecificRefreshToken(userId: string, refreshToken: string): Promise<boolean> {
-  if (!refreshTokenStore[userId]) {
-    return false;
-  }
-  
-  const result = refreshTokenStore[userId].delete(refreshToken);
-  
-  // Clean up empty sets
-  if (refreshTokenStore[userId].size === 0) {
-    delete refreshTokenStore[userId];
-  }
-  
-  return result;
+  return mongoDeleteSpecificRefreshToken(userId, refreshToken);
 }

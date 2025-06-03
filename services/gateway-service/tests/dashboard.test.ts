@@ -3,7 +3,7 @@ import { app } from "../src/index";
 
 jest.mock("../src/clients/internal", () => ({
   internal: {
-    get: jest.fn().mockImplementation((url: string) => {
+    get: jest.fn().mockImplementation((url) => {
       if (url.includes("offchain-profile")) return { data: { xp: 100, streak: 2 } };
       if (url.includes("reward-service"))  return { data: { balance: "42" } };
     })
@@ -22,4 +22,6 @@ it("returns 401 if no JWT", async () => {
   expect(res.status).toBe(401);
 });
 it("returns 401 if invalid JWT", async () => {
-  const res = await request(app).get("/dashboard").set("
+  const res = await request(app).get("/dashboard").set("Authorization", "Bearer invalid-token");
+  expect(res.status).toBe(401);
+});

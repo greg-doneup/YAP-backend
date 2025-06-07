@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yap-frontend
+  labels:
+    app: yap-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: yap-frontend
+  template:
+    metadata:
+      labels:
+        app: yap-frontend
+    spec:
+      containers:
+      - name: yap-frontend
+        image: registry.digitalocean.com/yap-cr/yap-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yap-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: yap-frontend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

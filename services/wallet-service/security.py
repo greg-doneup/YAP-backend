@@ -11,7 +11,7 @@ import time
 import hashlib
 import hmac
 import logging
-from typing import Dict, Any, Optional, List, Set
+from typing import Dict, Any, Optional, List, Set, Tuple
 from datetime import datetime, timedelta
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -108,6 +108,111 @@ class RateLimitEntry:
     blocked_until: Optional[datetime] = None
     total_requests: int = 0
     blocked_requests: int = 0
+
+@dataclass
+class RateLimitTracker:
+    """Advanced rate limiting tracker with progressive penalties."""
+    attempts: int = 0
+    first_attempt: datetime = field(default_factory=datetime.utcnow)
+    last_attempt: datetime = field(default_factory=datetime.utcnow)
+    lockout_until: Optional[datetime] = None
+    progressive_delay: int = 1  # Progressive backoff multiplier
+    
+    def is_locked_out(self) -> bool:
+        """Check if currently locked out."""
+        if self.lockout_until and datetime.utcnow() < self.lockout_until:
+            return True
+        return False
+    
+    def add_attempt(self) -> bool:
+        """
+        Add an attempt and return if allowed.
+        Implements progressive rate limiting.
+        """
+        now = datetime.utcnow()
+        
+        # Reset if window expired
+        if now - self.first_attempt > timedelta(hours=1):
+            self.attempts = 0
+            self.first_attempt = now
+            self.progressive_delay = 1
+        
+        self.last_attempt = now
+        self.attempts += 1
+        
+        # Progressive lockout based on attempts
+        if self.attempts >= 3:
+            # First lockout: 5 minutes
+            if self.attempts == 3:
+                self.lockout_until = now + timedelta(minutes=5)
+                self.progressive_delay = 2
+            # Second lockout: 15 minutes  
+            elif self.attempts == 6:
+                self.lockout_until = now + timedelta(minutes=15)
+                self.progressive_delay = 4
+            # Third lockout: 1 hour
+            elif self.attempts >= 10:
+                self.lockout_until = now + timedelta(hours=1)
+                self.progressive_delay = 8
+            
+            return False
+        
+        return True
+
+class EnhancedRateLimiter:
+    """Enhanced rate limiter with progressive penalties and user tracking."""
+    
+    def __init__(self):
+        self.user_trackers: Dict[str, Dict[str, RateLimitTracker]] = defaultdict(dict)
+        self.ip_trackers: Dict[str, Dict[str, RateLimitTracker]] = defaultdict(dict)
+        self.global_trackers: Dict[str, RateLimitTracker] = {}
+        
+    def check_rate_limit(self, 
+                        user_id: Optional[str], 
+                        ip_address: str, 
+                        operation: str,
+                        max_attempts: int = 5) -> Tuple[bool, Optional[str]]:
+        """
+        Check rate limits with progressive penalties.
+        
+        Returns:
+            (allowed, error_message)
+        """
+        now = datetime.utcnow()
+        
+        # Check user-specific rate limit
+        if user_id:
+            if operation not in self.user_trackers[user_id]:
+                self.user_trackers[user_id][operation] = RateLimitTracker()
+            
+            user_tracker = self.user_trackers[user_id][operation]
+            
+            if user_tracker.is_locked_out():
+                remaining = user_tracker.lockout_until - now
+                return False, f"Account temporarily locked. Try again in {remaining.seconds // 60} minutes."
+            
+            if not user_tracker.add_attempt():
+                return False, f"Too many attempts. Account locked for {user_tracker.progressive_delay * 5} minutes."
+        
+        # Check IP-specific rate limit
+        if operation not in self.ip_trackers[ip_address]:
+            self.ip_trackers[ip_address][operation] = RateLimitTracker()
+        
+        ip_tracker = self.ip_trackers[ip_address][operation]
+        
+        if ip_tracker.is_locked_out():
+            remaining = ip_tracker.lockout_until - now
+            return False, f"IP temporarily blocked. Try again in {remaining.seconds // 60} minutes."
+        
+        if not ip_tracker.add_attempt():
+            return False, f"Too many attempts from this IP. Blocked for {ip_tracker.progressive_delay * 5} minutes."
+        
+        return True, None
+    
+    def reset_user_limits(self, user_id: str, operation: str):
+        """Reset rate limits for successful operations."""
+        if user_id in self.user_trackers and operation in self.user_trackers[user_id]:
+            del self.user_trackers[user_id][operation]
 
 class WalletSecurityStore:
     """Thread-safe security data store for wallet service"""

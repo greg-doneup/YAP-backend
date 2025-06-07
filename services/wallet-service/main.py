@@ -13,10 +13,12 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from crypto_utils import CryptoUtils  # Enhanced encryption utilities
-from enhanced_rate_limiter import rate_limiter, RateLimitType, rate_limit_decorator
-from security import security_middleware, get_wallet_security_metrics
+from crypto_utils import EnhancedCryptoUtils  # Enhanced encryption utilities
+from enhanced_rate_limiter import EnhancedRateLimiter, RateLimitType, rate_limit_decorator
+from security import EnhancedSecurityMiddleware, get_wallet_security_metrics
+from wallet_utils import WalletUtils
 from dotenv import load_dotenv
+from security import security_middleware, get_wallet_security_metrics
 
 # Load environment variables
 load_dotenv('.env.development')
@@ -211,10 +213,6 @@ try:
     db = client.get_database(MONGO_DB_NAME).get_collection("profiles")
     # Add audit collection for security events
     audit_db = client.get_database(MONGO_DB_NAME).get_collection("security_audit")
-    # Recovery collection for enhanced mnemonic recovery
-    recovery_collection = client.get_database(MONGO_DB_NAME).get_collection("recovery")
-    # Wallets collection for storing user wallets
-    wallets_collection = client.get_database(MONGO_DB_NAME).get_collection("wallets")
     logger.info(f"✅ Connected to MongoDB: {MONGO_DB_NAME}")
 except Exception as e:
     logger.error(f"❌ Failed to connect to MongoDB: {e}")
@@ -769,313 +767,122 @@ async def waitlist_signup(request: WaitlistSignupRequest, req: Request, _: None 
                                 {"error": "unexpected_error", "details": str(e)}, False)
         raise HTTPException(status_code=500, detail="Failed to create waitlist wallet")
 
-# New Enhanced Recovery Models
-class MnemonicRecoveryRequest(BaseModel):
-    user_id: str
-    mnemonic_phrase: str
-    user_passphrase: str
-    
-    @validator('mnemonic_phrase')
-    def validate_mnemonic(cls, v):
-        words = v.strip().split()
-        if len(words) not in [12, 15, 18, 21, 24]:
-            raise ValueError("Invalid mnemonic length")
-        return v.strip()
-    
-    @validator('user_passphrase')
-    def validate_passphrase(cls, v):
-        if len(v) < 8:
-            raise ValueError("Passphrase must be at least 8 characters")
-        return v
+# New Security Analytics and Monitoring Endpoints
 
-class MnemonicStorageRequest(BaseModel):
-    user_id: str
-    mnemonic_phrase: str
-    
-    @validator('mnemonic_phrase')
-    def validate_mnemonic(cls, v):
-        words = v.strip().split()
-        if len(words) not in [12, 15, 18, 21, 24]:
-            raise ValueError("Invalid mnemonic length")
-        return v.strip()
-
-# Enhanced recovery endpoints with comprehensive security
-@app.post("/api/v2/wallet/store-recovery-hash")
-@rate_limit_decorator(
-    RateLimitType.WALLET_CREATION,
-    get_user_id_func=lambda req: req.json.get('user_id') if hasattr(req, 'json') else None,
-    get_ip_func=lambda req: req.client.host if hasattr(req, 'client') else None
-)
-async def store_recovery_hash(request: MnemonicStorageRequest, http_request: Request):
-    """
-    Store a secure recovery hash for mnemonic phrase.
-    Uses enhanced two-layer security with server secret.
-    """
+@app.get("/wallet/security/metrics")
+@security_middleware.protect_endpoint("security_metrics")
+async def get_security_metrics(request: Request):
+    """Get comprehensive security metrics for monitoring"""
     try:
-        # Security validation
-        is_valid, error_msg = await security_middleware.validate_request(http_request, "wallet_creation")
-        if not is_valid:
-            audit_logger.warning(f"Recovery hash storage blocked: {error_msg} for user {request.user_id}")
-            raise HTTPException(status_code=429, detail=error_msg)
+        client_ip = request.client.host
         
-        # Create recovery hash with server secret
-        recovery_data = CryptoUtils.create_recovery_hash(
-            request.mnemonic_phrase, 
-            request.user_id
-        )
-        
-        # Store in database
-        recovery_document = {
-            "user_id": request.user_id,
-            "recovery_hash": recovery_data["recovery_hash"],
-            "user_salt": recovery_data["user_salt"],
-            "created_at": recovery_data["created_at"],
-            "last_accessed": None,
-            "access_count": 0
-        }
-        
-        # Insert or update
-        await recovery_collection.replace_one(
-            {"user_id": request.user_id},
-            recovery_document,
-            upsert=True
-        )
-        
-        # Security audit log
-        audit_logger.info(f"Recovery hash stored for user {request.user_id} from IP {http_request.client.host}")
-        
-        # Record successful attempt
-        rate_limiter.record_attempt(
-            request.user_id,
-            RateLimitType.WALLET_CREATION,
-            success=True,
-            ip_address=str(http_request.client.host),
-            metadata={"action": "store_recovery_hash"}
-        )
-        
-        return {
-            "status": "success",
-            "message": "Recovery hash stored securely",
-            "hash_created_at": recovery_data["created_at"]
-        }
-        
-    except ValueError as e:
-        audit_logger.warning(f"Invalid recovery data for user {request.user_id}: {str(e)}")
-        rate_limiter.record_attempt(
-            request.user_id,
-            RateLimitType.WALLET_CREATION,
-            success=False,
-            ip_address=str(http_request.client.host),
-            metadata={"error": "validation_failed", "details": str(e)}
-        )
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error storing recovery hash for user {request.user_id}: {str(e)}")
-        audit_logger.error(f"Recovery hash storage failed for user {request.user_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to store recovery hash")
-
-@app.post("/api/v2/wallet/verify-recovery")
-@rate_limit_decorator(
-    RateLimitType.RECOVERY_ATTEMPT,
-    get_user_id_func=lambda req: req.json.get('user_id') if hasattr(req, 'json') else None,
-    get_ip_func=lambda req: req.client.host if hasattr(req, 'client') else None
-)
-async def verify_mnemonic_recovery(request: MnemonicRecoveryRequest, http_request: Request):
-    """
-    Verify mnemonic phrase against stored recovery hash.
-    Enhanced with progressive rate limiting and comprehensive audit logging.
-    """
-    try:
-        # Security validation
-        is_valid, error_msg = await security_middleware.validate_request(http_request, "recovery_attempt")
-        if not is_valid:
-            audit_logger.warning(f"Recovery attempt blocked: {error_msg} for user {request.user_id}")
-            raise HTTPException(status_code=429, detail=error_msg)
-        
-        # Retrieve stored recovery data
-        recovery_doc = await recovery_collection.find_one({"user_id": request.user_id})
-        if not recovery_doc:
-            audit_logger.warning(f"Recovery attempt for non-existent user {request.user_id}")
-            rate_limiter.record_attempt(
-                request.user_id,
-                RateLimitType.RECOVERY_ATTEMPT,
-                success=False,
-                ip_address=str(http_request.client.host),
-                metadata={"error": "user_not_found"}
-            )
-            raise HTTPException(status_code=404, detail="No recovery data found for user")
-        
-        # Verify mnemonic against stored hash
-        is_valid_mnemonic = CryptoUtils.verify_recovery_hash(
-            request.mnemonic_phrase,
-            request.user_id,
-            recovery_doc["recovery_hash"],
-            recovery_doc["user_salt"]
-        )
-        
-        if not is_valid_mnemonic:
-            # Record failed attempt
-            audit_logger.warning(f"Invalid mnemonic recovery attempt for user {request.user_id} from IP {http_request.client.host}")
-            rate_limiter.record_attempt(
-                request.user_id,
-                RateLimitType.RECOVERY_ATTEMPT,
-                success=False,
-                ip_address=str(http_request.client.host),
-                metadata={"error": "invalid_mnemonic"}
-            )
-            raise HTTPException(status_code=401, detail="Invalid mnemonic phrase")
-        
-        # Create new wallet from verified mnemonic
-        from wallet_utils import WalletUtils
-        wallets = WalletUtils.create_wallets_from_mnemonic(request.mnemonic_phrase)
-        
-        # Encrypt mnemonic with user passphrase for storage
-        encrypted_data = CryptoUtils.encrypt_mnemonic(request.mnemonic_phrase, request.user_passphrase)
-        
-        # Update user's wallet document
-        wallet_document = {
-            "user_id": request.user_id,
-            "sei_wallet": wallets["sei"],
-            "eth_wallet": wallets["eth"],
-            "encrypted_mnemonic": encrypted_data["encrypted_mnemonic"],
-            "salt": encrypted_data["salt"],
-            "nonce": encrypted_data["nonce"],
-            "created_at": datetime.utcnow().isoformat(),
-            "recovered_at": datetime.utcnow().isoformat(),
-            "recovery_count": recovery_doc.get("access_count", 0) + 1
-        }
-        
-        await wallets_collection.replace_one(
-            {"user_id": request.user_id},
-            wallet_document,
-            upsert=True
-        )
-        
-        # Update recovery access tracking
-        await recovery_collection.update_one(
-            {"user_id": request.user_id},
-            {
-                "$set": {"last_accessed": datetime.utcnow().isoformat()},
-                "$inc": {"access_count": 1}
-            }
-        )
-        
-        # Record successful recovery
-        audit_logger.info(f"Successful mnemonic recovery for user {request.user_id} from IP {http_request.client.host}")
-        rate_limiter.record_attempt(
-            request.user_id,
-            RateLimitType.RECOVERY_ATTEMPT,
-            success=True,
-            ip_address=str(http_request.client.host),
-            metadata={"action": "mnemonic_recovery"}
-        )
-        
-        return {
-            "status": "success",
-            "message": "Mnemonic verified and wallet recovered",
-            "wallets": {
-                "sei": {"address": wallets["sei"]["address"]},
-                "eth": {"address": wallets["eth"]["address"]}
-            },
-            "recovered_at": wallet_document["recovered_at"]
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error during mnemonic recovery for user {request.user_id}: {str(e)}")
-        audit_logger.error(f"Mnemonic recovery failed for user {request.user_id}: {str(e)}")
-        rate_limiter.record_attempt(
-            request.user_id,
-            RateLimitType.RECOVERY_ATTEMPT,
-            success=False,
-            ip_address=str(http_request.client.host),
-            metadata={"error": "system_error", "details": str(e)}
-        )
-        raise HTTPException(status_code=500, detail="Recovery process failed")
-
-# Security monitoring endpoints
-@app.get("/api/v2/admin/security-metrics")
-async def get_security_metrics(http_request: Request):
-    """Get comprehensive security metrics for monitoring."""
-    try:
-        # Basic admin auth check (implement proper admin auth in production)
-        admin_key = http_request.headers.get("X-Admin-Key")
-        if admin_key != os.environ.get("ADMIN_API_KEY"):
-            raise HTTPException(status_code=403, detail="Admin access required")
-        
-        # Get metrics from all security components
-        rate_limit_metrics = rate_limiter.get_security_metrics()
+        # Get metrics from both middleware and local audit database
         middleware_metrics = get_wallet_security_metrics()
         
-        # Database metrics
-        total_recoveries = await recovery_collection.count_documents({})
-        total_wallets = await wallets_collection.count_documents({})
-        recent_recoveries = await recovery_collection.count_documents({
-            "last_accessed": {"$gte": (datetime.utcnow() - timedelta(hours=24)).isoformat()}
-        })
+        # Get audit database metrics
+        yesterday = datetime.utcnow() - timedelta(days=1)
+        events = await audit_db.find({
+            "timestamp": {"$gte": yesterday}
+        }).to_list(1000)
+        
+        # Calculate metrics
+        total_events = len(events)
+        failed_events = len([e for e in events if not e.get('success', True)])
+        unique_ips = len(set(e.get('client_ip') for e in events if e.get('client_ip')))
+        
+        # Event type breakdown
+        event_types = {}
+        for event in events:
+            event_type = event.get('event_type', 'unknown')
+            event_types[event_type] = event_types.get(event_type, 0) + 1
+        
+        await log_security_event("metrics_access", "admin", client_ip, 
+                                {"total_events": total_events}, True)
         
         return {
+            "status": "success",
             "timestamp": datetime.utcnow().isoformat(),
-            "rate_limiting": rate_limit_metrics,
-            "middleware": middleware_metrics,
-            "database": {
-                "total_recovery_hashes": total_recoveries,
-                "total_wallets": total_wallets,
-                "recent_recoveries_24h": recent_recoveries
+            "period": "24h",
+            "wallet_service_metrics": {
+                "total_events": total_events,
+                "failed_events": failed_events,
+                "success_rate": round((total_events - failed_events) / max(total_events, 1) * 100, 2),
+                "unique_ips": unique_ips,
+                "event_types": event_types
             },
-            "server_status": {
-                "server_secret_configured": bool(os.environ.get("MNEMONIC_SERVER_SECRET")),
-                "admin_key_configured": bool(os.environ.get("ADMIN_API_KEY")),
-                "audit_logging_enabled": True
-            }
+            "security_middleware_metrics": middleware_metrics
+        }
+    except Exception as e:
+        logger.error(f"Error getting security metrics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve security metrics"
+        )
+
+@app.get("/wallet/security/failed-attempts/{email}")
+async def get_failed_attempts(email: str, request: Request, _: None = Depends(check_rate_limit)):
+    """Get failed authentication attempts for specific email (admin endpoint)"""
+    client_ip = request.client.host
+    
+    if not security_validator.validate_email(email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    try:
+        # Get failed attempts for this email (last 24 hours)
+        yesterday = datetime.utcnow() - timedelta(days=1)
+        email_hash = hashlib.sha256(email.encode()).hexdigest()
+        
+        failed_attempts = await audit_db.find({
+            "email_hash": email_hash,
+            "success": False,
+            "timestamp": {"$gte": yesterday}
+        }).to_list(100)
+        
+        await log_security_event("failed_attempts_query", email, client_ip, 
+                                {"attempt_count": len(failed_attempts)}, True)
+        
+        return {
+            "email_hash": email_hash,
+            "failed_attempts": len(failed_attempts),
+            "attempts": [
+                {
+                    "timestamp": attempt.get("timestamp"),
+                    "event_type": attempt.get("event_type"),
+                    "client_ip": attempt.get("client_ip"),
+                    "details": attempt.get("details", {})
+                }
+                for attempt in failed_attempts
+            ]
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error getting security metrics: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve security metrics")
+        logger.error(f"Failed to get failed attempts: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve failed attempts")
 
-@app.post("/api/v2/admin/reset-rate-limits")
-async def reset_user_rate_limits(
-    user_id: str, 
-    limit_type: Optional[str] = None,
-    http_request: Request = None
-):
-    """Admin endpoint to reset rate limits for a user."""
+@app.post("/wallet/security/validate-passphrase")
+async def validate_passphrase_endpoint(request: Request, _: None = Depends(check_rate_limit)):
+    """Endpoint for frontend to validate passphrase strength"""
+    client_ip = request.client.host
+    
     try:
-        # Admin auth check
-        admin_key = http_request.headers.get("X-Admin-Key")
-        if admin_key != os.environ.get("ADMIN_API_KEY"):
-            raise HTTPException(status_code=403, detail="Admin access required")
+        body = await request.json()
+        passphrase = body.get('passphrase', '')
         
-        # Convert string to enum if provided
-        rate_limit_type = None
-        if limit_type:
-            try:
-                rate_limit_type = RateLimitType(limit_type)
-            except ValueError:
-                raise HTTPException(status_code=400, detail=f"Invalid limit type: {limit_type}")
+        if not passphrase:
+            raise HTTPException(status_code=400, detail="Passphrase is required")
         
-        # Reset limits
-        success = rate_limiter.reset_user_limits(user_id, rate_limit_type)
+        validation = security_validator.validate_passphrase_strength(passphrase)
         
-        if success:
-            audit_logger.info(f"Admin reset rate limits for user {user_id}, type: {limit_type or 'all'}")
-            return {
-                "status": "success",
-                "message": f"Rate limits reset for user {user_id}",
-                "reset_type": limit_type or "all"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to reset rate limits")
-            
+        await log_security_event("passphrase_validation", "anonymous", client_ip, 
+                                {"score": validation['score']}, True)
+        
+        return validation
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error resetting rate limits: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to reset rate limits")
+        logger.error(f"Failed to validate passphrase: {e}")
+        raise HTTPException(status_code=500, detail="Failed to validate passphrase")
 
 # Enhanced error handling
 @app.exception_handler(HTTPException)

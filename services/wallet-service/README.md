@@ -28,7 +28,6 @@ The service implements a sophisticated two-layer security architecture:
 - `POST /wallet/secure-account` - First-time secure account setup
 - `POST /wallet/recover` - Authenticate and return encrypted wallet data
 - `POST /wallet/register` - Register wallet for existing user
-- `POST /wallet/waitlist-signup` - Waitlist user wallet creation
 
 ## Quick Start
 
@@ -131,7 +130,6 @@ Fully compatible with the mock server implementation for development and testing
     "eth_address": "string"
   },
   "wlw": boolean,
-  "waitlist_bonus": number,
   "secured_at": "ISO8601",
   "updated_at": "ISO8601"
 }

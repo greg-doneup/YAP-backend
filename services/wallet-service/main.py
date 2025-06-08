@@ -13,12 +13,10 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from crypto_utils import EnhancedCryptoUtils  # Enhanced encryption utilities
-from enhanced_rate_limiter import EnhancedRateLimiter, RateLimitType, rate_limit_decorator
-from security import EnhancedSecurityMiddleware, get_wallet_security_metrics
+from crypto_utils import CryptoUtils  # Enhanced encryption utilities
+from security import EnhancedRateLimiter, WalletSecurityMiddleware, get_wallet_security_metrics, security_middleware
 from wallet_utils import WalletUtils
 from dotenv import load_dotenv
-from security import security_middleware, get_wallet_security_metrics
 
 # Load environment variables
 load_dotenv('.env.development')
@@ -334,36 +332,6 @@ class RegistrationRequest(BaseModel):
             raise ValueError("Cryptographic field too short")
         return v
 
-class WaitlistSignupRequest(BaseModel):
-    email: EmailStr
-    passphrase: str
-    encrypted_mnemonic: str
-    salt: str
-    nonce: str
-    sei_address: str
-    sei_public_key: str
-    eth_address: str
-    eth_public_key: str
-    
-    @validator('passphrase')
-    def validate_passphrase(cls, v):
-        validation = security_validator.validate_passphrase_strength(v)
-        if not validation['is_valid']:
-            raise ValueError(f"Passphrase validation failed: {', '.join(validation['errors'])}")
-        return v
-    
-    @validator('sei_address')
-    def validate_sei_address(cls, v):
-        if not v.startswith('sei1') or len(v) < 10:
-            raise ValueError("Invalid SEI address format")
-        return v
-    
-    @validator('eth_address')
-    def validate_eth_address(cls, v):
-        if not v.startswith('0x') or len(v) != 42:
-            raise ValueError("Invalid Ethereum address format")
-        return v
-
 # Enhanced security monitoring models
 class SecurityMetrics(BaseModel):
     total_requests: int
@@ -430,7 +398,11 @@ async def get_profile_by_email(email: str, request: Request, _: None = Depends(c
         
         await log_security_event("profile_lookup", email, client_ip, 
                                 {"result": "found", "has_wallet": bool(profile.get("wlw"))}, True)
-        return profile
+        
+        # Return profile data
+        profile_response = dict(profile)
+        
+        return profile_response
         
     except HTTPException:
         raise
@@ -463,13 +435,13 @@ async def setup_secure_account(request: SecureAccountRequest, req: Request,
                                 {"error": "invalid_crypto_data", "details": crypto_validation['errors']}, False)
         raise HTTPException(status_code=400, detail=f"Invalid encrypted data: {', '.join(crypto_validation['errors'])}")
     
-    # Find waitlist user by email
+    # Find user by email
     try:
         profile = await db.find_one({"email": request.email}, {"_id": 0})
         if not profile:
             await log_security_event("secure_account_setup", request.email, client_ip,
                                     {"error": "email_not_found"}, False)
-            raise HTTPException(status_code=404, detail="Email not found in waitlist")
+            raise HTTPException(status_code=404, detail="Email not found")
         
         # Check if user already has secure account setup
         if profile.get("wlw") == True and profile.get("passphrase_hash"):
@@ -581,13 +553,12 @@ async def recover_wallet(request: AuthRequest, req: Request, _: None = Depends(c
         
         # Log successful recovery
         await log_security_event("wallet_recovery", request.email, client_ip,
-                                {"user_id": profile.get("userId", "unknown"), "has_waitlist_bonus": bool(profile.get("waitlist_bonus"))}, True)
+                                {"user_id": profile.get("userId", "unknown")}, True)
         
         return {
             "success": True,
             "encrypted_wallet_data": encrypted_wallet_data,
-            "user_id": profile.get("userId", "unknown"),
-            "waitlist_bonus": profile.get("waitlist_bonus", 0)
+            "user_id": profile.get("userId", "unknown")
         }
         
     except HTTPException:
@@ -669,103 +640,6 @@ async def register_wallet(request: RegistrationRequest, req: Request, _: None = 
         await log_security_event("wallet_registration", request.email, client_ip,
                                 {"error": "unexpected_error", "details": str(e)}, False)
         raise HTTPException(status_code=500, detail="Failed to register wallet")
-
-@app.post("/wallet/waitlist-signup")
-@security_middleware.protect_endpoint("waitlist_signup")
-async def waitlist_signup(request: WaitlistSignupRequest, req: Request, _: None = Depends(check_rate_limit)):
-    """
-    Enhanced waitlist user signup with comprehensive security features
-    """
-    client_ip = req.client.host
-    
-    # Enhanced security validation from middleware
-    await security_middleware.validate_request(req, {
-        "email": request.email,
-        "operation": "waitlist_signup",
-        "sei_address": request.sei_address,
-        "eth_address": request.eth_address,
-        "crypto_data": {
-            "encrypted_mnemonic": request.encrypted_mnemonic,
-            "salt": request.salt,
-            "nonce": request.nonce
-        }
-    })
-    
-    try:
-        # Verify user exists
-        existing = await db.find_one({"email": request.email}, {"_id": 0})
-        if not existing:
-            await log_security_event("waitlist_signup", request.email, client_ip,
-                                    {"error": "profile_not_found"}, False)
-            raise HTTPException(status_code=404, detail="Profile not found for waitlist signup")
-        
-        # Ensure user hasn't already onboarded
-        if existing.get("wlw"):
-            await log_security_event("waitlist_signup", request.email, client_ip,
-                                    {"error": "already_has_wallet"}, False)
-            raise HTTPException(status_code=400, detail="User already has a wallet")
-        
-        # Validate crypto data structure
-        crypto_data = {
-            "encrypted_mnemonic": request.encrypted_mnemonic,
-            "salt": request.salt,
-            "nonce": request.nonce
-        }
-        crypto_validation = security_validator.validate_crypto_data(crypto_data)
-        if not crypto_validation['is_valid']:
-            await log_security_event("waitlist_signup", request.email, client_ip,
-                                    {"error": "invalid_crypto_data", "details": crypto_validation['errors']}, False)
-            raise HTTPException(status_code=400, detail=f"Invalid crypto data: {', '.join(crypto_validation['errors'])}")
-        
-        # Prepare wallet payload with enhanced security metadata
-        wallet_data = {
-            "wlw": True,
-            "waitlist_bonus": 25,
-            "sei_wallet": {
-                "address": request.sei_address,
-                "public_key": request.sei_public_key
-            },
-            "eth_wallet": {
-                "address": request.eth_address,
-                "public_key": request.eth_public_key
-            },
-            "encrypted_mnemonic": request.encrypted_mnemonic,
-            "salt": request.salt,
-            "nonce": request.nonce,
-            "waitlist_signup_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-            "signup_ip_hash": hashlib.sha256(client_ip.encode()).hexdigest()  # Privacy-preserving IP tracking
-        }
-        
-        # Persist to DB
-        result = await db.update_one({"email": request.email}, {"$set": wallet_data})
-        if result.modified_count != 1:
-            await log_security_event("waitlist_signup", request.email, client_ip,
-                                    {"error": "database_update_failed"}, False)
-            raise HTTPException(status_code=500, detail="Failed to store wallet data")
-        
-        # Log successful waitlist signup
-        await log_security_event("waitlist_signup", request.email, client_ip,
-                                {"user_id": existing.get("userId", "unknown"), 
-                                 "sei_address": request.sei_address,
-                                 "eth_address": request.eth_address}, True)
-        
-        return {
-            "status": "wallet_created",
-            "sei_address": request.sei_address,
-            "eth_address": request.eth_address,
-            "waitlist_bonus": 25,
-            "user_id": existing.get("userId", "unknown"),
-            "message": "Wallet created successfully for waitlist user"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in waitlist signup: {e}")
-        await log_security_event("waitlist_signup", request.email, client_ip,
-                                {"error": "unexpected_error", "details": str(e)}, False)
-        raise HTTPException(status_code=500, detail="Failed to create waitlist wallet")
 
 # New Security Analytics and Monitoring Endpoints
 

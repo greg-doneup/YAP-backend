@@ -673,6 +673,102 @@ router.delete('/:userId/wallet', async (req, res, next) => {
   }
 });
 
+/** PUT /profile/:userId/wallet - Update profile with wallet data for waitlist conversion */
+router.put('/:userId/wallet', async (req, res, next) => {
+  try {
+    const context = createSecurityContext(req);
+    const userIdFromToken = getUserIdFromRequest(req);
+    const requestedUserId = req.params.userId;
+    
+    // For waitlist conversion, we allow this operation even without full auth
+    // The auth service handles the security validation
+    
+    const { 
+      wlw, 
+      passphrase_hash, 
+      encrypted_mnemonic, 
+      salt, 
+      nonce, 
+      sei_wallet, 
+      eth_wallet, 
+      secured_at, 
+      converted 
+    } = req.body;
+    
+    // Validate required fields for wallet conversion
+    if (!passphrase_hash || !encrypted_mnemonic || !salt || !nonce) {
+      return res.status(400).json({
+        error: 'missing_wallet_data',
+        message: 'Wallet encryption data is required'
+      });
+    }
+    
+    if (!sei_wallet?.address || !eth_wallet?.address) {
+      return res.status(400).json({
+        error: 'missing_wallet_addresses',
+        message: 'Both SEI and ETH wallet addresses are required'
+      });
+    }
+    
+    // Update profile with wallet data
+    const now = new Date().toISOString();
+    const updates = {
+      wlw: wlw || true,
+      passphrase_hash,
+      encrypted_mnemonic,
+      salt,
+      nonce,
+      encrypted_wallet_data: {
+        encrypted_mnemonic,
+        salt,
+        nonce,
+        sei_address: sei_wallet.address,
+        eth_address: eth_wallet.address
+      },
+      sei_wallet,
+      eth_wallet,
+      secured_at: secured_at || now,
+      converted: converted || true,
+      updatedAt: now
+    };
+    
+    try {
+      const result = await ProfileModel.findOneAndUpdate(
+        { userId: requestedUserId },
+        { $set: updates },
+        { new: true, runValidators: true }
+      );
+      
+      if (!result) {
+        return res.status(404).json({
+          error: 'profile_not_found',
+          message: 'Profile not found'
+        });
+      }
+      
+      console.log(`✅ Updated profile ${requestedUserId} with wallet data for conversion`);
+      
+      res.json({
+        success: true,
+        message: 'Profile updated with wallet data successfully',
+        walletAddress: sei_wallet.address,
+        ethWalletAddress: eth_wallet.address
+      });
+      
+    } catch (error: any) {
+      console.error('Error updating profile with wallet data:', error);
+      return res.status(500).json({
+        error: 'update_failed',
+        message: 'Failed to update profile with wallet data',
+        details: error.message
+      });
+    }
+    
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** GET /profile/:userId/gdpr/export - Export all user data (GDPR compliance) */
 router.get('/:userId/gdpr/export', async (req, res, next) => {
   try {

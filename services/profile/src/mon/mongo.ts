@@ -8,11 +8,37 @@ export interface Profile {
   initial_language_to_learn: string;
   createdAt: string;
   updatedAt: string;
+  // Waitlist fields
+  isWaitlistUser?: boolean;
+  waitlist_signup_at?: string;
+  wlw?: boolean; // wallet_linked_to_wallet (has wallet)
+  converted?: boolean; // waitlist user converted to full account
   // Optional encrypted wallet data
   encryptedPrivateKey?: string;
   walletAddress?: string;
   keyCreatedAt?: string;
   keyLastAccessed?: string;
+  // Enhanced wallet data for unified registration
+  passphrase_hash?: string;
+  encrypted_mnemonic?: string;
+  salt?: string;
+  nonce?: string;
+  encrypted_wallet_data?: {
+    encrypted_mnemonic: string;
+    salt: string;
+    nonce: string;
+    sei_address: string;
+    eth_address: string;
+  };
+  sei_wallet?: {
+    address: string;
+    public_key: string;
+  };
+  eth_wallet?: {
+    address: string;
+    public_key: string;
+  };
+  secured_at?: string;
 }
 
 // Define Profile document interface
@@ -26,11 +52,37 @@ const ProfileSchema: Schema = new Schema({
   initial_language_to_learn: { type: String, required: true },
   createdAt: { type: String, default: () => new Date().toISOString() },
   updatedAt: { type: String, default: () => new Date().toISOString() },
+  // Waitlist fields
+  isWaitlistUser: { type: Boolean, default: false },
+  waitlist_signup_at: { type: String },
+  wlw: { type: Boolean, default: false }, // wallet_linked_to_wallet (has wallet)
+  converted: { type: Boolean, default: false }, // waitlist user converted to full account
   // Optional encrypted wallet fields
   encryptedPrivateKey: { type: String, select: false }, // Never select by default for security
   walletAddress: { type: String, index: true },
   keyCreatedAt: { type: String },
-  keyLastAccessed: { type: String }
+  keyLastAccessed: { type: String },
+  // Enhanced wallet data for unified registration
+  passphrase_hash: { type: String, select: false }, // Never select by default for security
+  encrypted_mnemonic: { type: String, select: false },
+  salt: { type: String, select: false },
+  nonce: { type: String, select: false },
+  encrypted_wallet_data: {
+    encrypted_mnemonic: { type: String },
+    salt: { type: String },
+    nonce: { type: String },
+    sei_address: { type: String },
+    eth_address: { type: String }
+  },
+  sei_wallet: {
+    address: { type: String },
+    public_key: { type: String }
+  },
+  eth_wallet: {
+    address: { type: String },
+    public_key: { type: String }
+  },
+  secured_at: { type: String }
 }, { 
   collection: 'profiles' 
 });

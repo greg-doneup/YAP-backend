@@ -11,12 +11,12 @@ async def setup_test_data():
     # Test user data
     test_users = [
         {
-            "email": "waitlist@test.com",
-            "name": "Waitlist User",
+            "email": "test@example.com", 
+            "name": "Test User",
             "created_at": "2024-01-01T00:00:00Z"
         },
         {
-            "email": "test@example.com", 
+            "email": "test2@example.com", 
             "name": "Test User 2",
             "created_at": "2024-01-01T00:00:00Z"
         },
@@ -24,7 +24,6 @@ async def setup_test_data():
             "email": "existing@wallet.com",
             "name": "Existing Wallet User",
             "wlw": True,
-            "waitlist_bonus": 25,
             "created_at": "2024-01-01T00:00:00Z"
         }
     ]

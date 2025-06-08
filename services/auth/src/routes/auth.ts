@@ -166,16 +166,128 @@ const createUserProfile = async (userId: string, email: string, languageToLearn:
   }
 };
 
-/* ── POST /auth/wallet/signup (handles initial signup from waitlist) ────────
-   Body: { name, email, language_to_learn }
-   Resp: { token, refreshToken, userId }
+// Enhanced profile creation function that includes wallet data
+const createUserProfileWithWallet = async (
+  userId: string, 
+  email: string, 
+  languageToLearn: string, 
+  name: string,
+  walletData: {
+    passphrase_hash: string;
+    encrypted_mnemonic: string;
+    salt: string;
+    nonce: string;
+    sei_address: string;
+    sei_public_key?: string;
+    eth_address: string;
+    eth_public_key?: string;
+  }
+) => {
+  try {
+    if (SKIP_PROFILE_CREATION) {
+      console.log('Skipping profile creation as SKIP_PROFILE_CREATION is set to true');
+      return true;
+    }
+
+    console.log(`Creating profile with wallet data for user ${userId}`);
+    
+    const profileData = {
+      userId,
+      email,
+      name,
+      initial_language_to_learn: languageToLearn,
+      wlw: true, // Has wallet
+      passphrase_hash: walletData.passphrase_hash,
+      encrypted_wallet_data: {
+        encrypted_mnemonic: walletData.encrypted_mnemonic,
+        salt: walletData.salt,
+        nonce: walletData.nonce,
+        sei_address: walletData.sei_address,
+        eth_address: walletData.eth_address
+      },
+      sei_wallet: {
+        address: walletData.sei_address,
+        public_key: walletData.sei_public_key || 'sei_pub_' + crypto.randomBytes(16).toString('hex')
+      },
+      eth_wallet: {
+        address: walletData.eth_address,
+        public_key: walletData.eth_public_key || 'eth_pub_' + crypto.randomBytes(16).toString('hex')
+      },
+      encrypted_mnemonic: walletData.encrypted_mnemonic,
+      salt: walletData.salt,
+      nonce: walletData.nonce,
+      secured_at: new Date().toISOString()
+    };
+    
+    const axiosConfig = {
+      timeout: 5000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${generateServiceToken(userId)}`
+      }
+    };
+    
+    try {
+      console.log(`Creating profile with wallet via ${PROFILE_SERVICE_URL}/profile`);
+      const response = await axios.post(`${PROFILE_SERVICE_URL}/profile`, profileData, axiosConfig);
+      console.log(`✅ Created profile with wallet: Status ${response.status}`);
+      return true;
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        console.log(`ℹ️ Profile already exists for user ${userId}`);
+        return true;
+      }
+      
+      console.error(`❌ Failed to create profile with wallet:`, error.message);
+      
+      // Fallback to gateway
+      try {
+        console.log(`Falling back to gateway: ${GATEWAY_SERVICE_URL}/profile`);
+        const response = await axios.post(
+          `${GATEWAY_SERVICE_URL}/profile`,
+          profileData,
+          axiosConfig
+        );
+        console.log(`✅ Created profile with wallet via gateway: Status ${response.status}`);
+        return true;
+      } catch (gatewayError: any) {
+        if (gatewayError.response?.status === 409) {
+          console.log(`ℹ️ Profile already exists via gateway`);
+          return true;
+        }
+        console.error(`❌ Gateway fallback failed:`, gatewayError.message);
+        throw gatewayError;
+      }
+    }
+  } catch (error: any) {
+    console.error('Error creating user profile with wallet:', error.message);
+    throw error;
+  }
+};
+
+/* ── POST /auth/wallet/signup (handles standard user signup) ────────
+   Body: { name, email, language_to_learn, passphrase_hash?, sei_address?, eth_address? }
+   Resp: { token, refreshToken, userId, walletAddress?, ethWalletAddress?, starting_points }
 */
 router.post("/wallet/signup", async (req, res) => {
   const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
   const userAgent = req.get('User-Agent') || 'unknown';
   
   try {
-    const { name, email, language_to_learn } = req.body;
+    const { 
+      name, 
+      email, 
+      language_to_learn, 
+      passphrase_hash, 
+      encrypted_mnemonic,
+      salt,
+      nonce,
+      sei_address, 
+      sei_public_key,
+      eth_address,
+      eth_public_key 
+    } = req.body;
     
     // Enhanced validation with security
     const validation = SecurityValidator.validateAuthRequest({ email, passphrase: 'dummy' });
@@ -196,26 +308,21 @@ router.post("/wallet/signup", async (req, res) => {
       auditLogger.logFailedAttempt(clientIp, email || 'unknown', 'missing_email');
       return res.status(400).json({ message: "email required" });
     }
-    if (!name) {
-      auditLogger.logFailedAttempt(clientIp, email, 'missing_name');
-      return res.status(400).json({ message: "name required" });
+    if (!passphrase_hash) {
+      return res.status(400).json({ message: "passphrase_hash required (frontend should hash the passphrase)" });
     }
-    if (!language_to_learn) {
-      auditLogger.logFailedAttempt(clientIp, email, 'missing_language');
-      return res.status(400).json({ message: "language_to_learn required" });
+    if (!encrypted_mnemonic || !salt || !nonce || !sei_address || !eth_address) {
+      return res.status(400).json({ message: "encrypted wallet data required" });
     }
 
     // Sanitize inputs
     const sanitizedEmail = SecurityValidator.sanitizeInput(email);
-    const sanitizedName = SecurityValidator.sanitizeInput(name);
-    const sanitizedLanguage = SecurityValidator.sanitizeInput(language_to_learn);
-
-    // Check email uniqueness
+    
+    // Check if user already exists (waitlist user conversion)
+    let existingProfile = null;
     try {
-      // if this call succeeds, email already exists
-      await axios.get(`${PROFILE_SERVICE_URL}/profile/email/${encodeURIComponent(sanitizedEmail)}`);
-      auditLogger.logFailedAttempt(clientIp, sanitizedEmail, 'email_already_exists');
-      return res.status(409).json({ message: "Email already registered" });
+      const profileResponse = await axios.get(`${PROFILE_SERVICE_URL}/profile/email/${encodeURIComponent(sanitizedEmail)}`);
+      existingProfile = profileResponse.data;
     } catch (err: any) {
       if (err.response?.status !== 404) {
         console.error('Error checking email uniqueness:', err.message);
@@ -229,18 +336,140 @@ router.post("/wallet/signup", async (req, res) => {
         });
         return res.status(500).json({ message: 'Error validating email uniqueness' });
       }
-      // 404 means email not found, proceed
+      // 404 means email not found - this is a new user
+    }
+    
+    // For waitlist conversion, name and language are optional (taken from existing profile)
+    // For new registration, name and language are required
+    if (!existingProfile || !existingProfile.isWaitlistUser) {
+      if (!name) {
+        auditLogger.logFailedAttempt(clientIp, sanitizedEmail, 'missing_name');
+        return res.status(400).json({ message: "name required" });
+      }
+      if (!language_to_learn) {
+        auditLogger.logFailedAttempt(clientIp, sanitizedEmail, 'missing_language');
+        return res.status(400).json({ message: "language_to_learn required" });
+      }
+    }
+    
+    if (existingProfile) {
+      // Check if this is a waitlist user conversion
+      if (existingProfile.wlw === false && existingProfile.isWaitlistUser) {
+        console.log('🔄 Converting waitlist user to full account:', sanitizedEmail);
+        
+        // Update existing profile with wallet data
+        try {
+          await axios.put(`${PROFILE_SERVICE_URL}/profile/${existingProfile.userId}/wallet`, {
+            wlw: true, // Now has wallet
+            passphrase_hash: passphrase_hash,
+            encrypted_mnemonic: encrypted_mnemonic,
+            salt: salt,
+            nonce: nonce,
+            sei_wallet: {
+              address: sei_address,
+              public_key: sei_public_key || 'sei_pub_' + crypto.randomBytes(16).toString('hex')
+            },
+            eth_wallet: {
+              address: eth_address,
+              public_key: eth_public_key || 'eth_pub_' + crypto.randomBytes(16).toString('hex')
+            },
+            secured_at: new Date().toISOString(),
+            converted: true // Mark as converted
+          });
+        } catch (error: any) {
+          console.error('Failed to update waitlist user profile:', error);
+          auditLogger.logSecurityEvent({
+            eventType: SecurityEventType.SUSPICIOUS_ACTIVITY,
+            email: sanitizedEmail,
+            clientIp,
+            userAgent,
+            success: false,
+            details: { error: 'waitlist_conversion_failed', message: error.message }
+          });
+          return res.status(500).json({
+            message: "Failed to convert waitlist user",
+            details: error.message
+          });
+        }
+
+        // Generate tokens for converted user
+        const { accessToken, refreshToken } = await generateTokens(existingProfile.userId);
+
+        console.log(`✅ Waitlist conversion completed for ${sanitizedEmail}`);
+        
+        // Log successful conversion
+        auditLogger.logSecurityEvent({
+          eventType: SecurityEventType.LOGIN_SUCCESS,
+          email: sanitizedEmail,
+          userId: existingProfile.userId,
+          clientIp,
+          userAgent,
+          success: true,
+          details: { 
+            action: 'waitlist_conversion', 
+            method: 'wallet_signup',
+            language: existingProfile.initial_language_to_learn,
+            startingPoints: 100
+          }
+        });
+
+        return res.json({
+          token: accessToken,
+          refreshToken: refreshToken,
+          userId: existingProfile.userId,
+          walletAddress: sei_address,
+          ethWalletAddress: eth_address,
+          name: existingProfile.name,
+          language_to_learn: existingProfile.initial_language_to_learn,
+          isWaitlistConversion: true,
+          starting_points: 100, // Bonus points for waitlist users
+          message: 'Waitlist user converted to full account successfully'
+        });
+        
+      } else {
+        // Regular user already exists with wallet
+        auditLogger.logFailedAttempt(clientIp, sanitizedEmail, 'email_already_exists');
+        return res.status(409).json({ message: "Email already registered" });
+      }
     }
 
-    // Generate a unique user ID (32 random bytes converted to hex = 64 chars)
-    const userId = crypto.randomBytes(32).toString('hex');
+    // Generate new user ID for standard signup
+    const finalUserId = crypto.randomBytes(32).toString('hex');
+    const finalName = name;
+    const finalLanguage = language_to_learn;
+
+    // Additional validation for new users
+    if (!finalName) {
+      auditLogger.logFailedAttempt(clientIp, sanitizedEmail, 'missing_final_name');
+      return res.status(400).json({ message: "name required" });
+    }
+    if (!finalLanguage) {
+      auditLogger.logFailedAttempt(clientIp, sanitizedEmail, 'missing_final_language');
+      return res.status(400).json({ message: "language_to_learn required" });
+    }
+
+    // Sanitize final inputs
+    const sanitizedName = SecurityValidator.sanitizeInput(finalName);
+    const sanitizedLanguage = SecurityValidator.sanitizeInput(finalLanguage);
+
+    // Use finalUserId for new signup
+    const userId = finalUserId;
 
     // Generate tokens
     const { accessToken, refreshToken } = await generateTokens(userId);
     
-    // Create user profile
+    // Create user profile for new signup with wallet data
     try {
-      await createUserProfile(userId, sanitizedEmail, sanitizedLanguage, sanitizedName);
+      await createUserProfileWithWallet(userId, sanitizedEmail, sanitizedLanguage, sanitizedName, {
+        passphrase_hash,
+        encrypted_mnemonic,
+        salt,
+        nonce,
+        sei_address,
+        sei_public_key,
+        eth_address,
+        eth_public_key
+      });
     } catch (error: any) {
       console.error('Failed to create user profile:', error);
       auditLogger.logSecurityEvent({
@@ -257,6 +486,9 @@ router.post("/wallet/signup", async (req, res) => {
       });
     }
     
+    // Calculate starting points (all new users start with 0)
+    const startingPoints = 0;
+    
     // Log successful signup
     auditLogger.logSecurityEvent({
       eventType: SecurityEventType.LOGIN_SUCCESS,
@@ -268,14 +500,20 @@ router.post("/wallet/signup", async (req, res) => {
       details: { 
         action: 'signup', 
         method: 'wallet_signup',
-        language: sanitizedLanguage
+        language: sanitizedLanguage,
+        startingPoints
       }
     });
     
     res.json({
       token: accessToken,
       refreshToken,
-      userId
+      userId,
+      walletAddress: sei_address,
+      ethWalletAddress: eth_address,
+      starting_points: startingPoints,
+      name: sanitizedName,
+      language_to_learn: sanitizedLanguage
     });
   } catch (err: any) {
     console.error("Signup error:", err.message);

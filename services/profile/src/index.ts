@@ -6,6 +6,7 @@ import { profileValidator } from './validators';
 import { profileController } from './controllers';
 import { connectToDatabase } from './mon/mongo';
 import { profileSecurityMiddleware } from './middleware/security';
+import waitlistRoutes from './routes/waitlist';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -53,6 +54,14 @@ app.use('/profile',
     profileSecurityMiddleware.auditProfileChanges(),
     profileValidator,
     profileController
+);
+
+// Waitlist routes with lighter security (no auth required for signup)
+app.use('/api/waitlist',
+    profileSecurityMiddleware.profileRateLimit(10, 5), // 10 waitlist signups per 5 minutes
+    profileSecurityMiddleware.validateProfileData(),
+    profileSecurityMiddleware.auditProfileChanges(),
+    waitlistRoutes
 );
 
 // Security monitoring endpoint

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yap-frontend
+  namespace: default
+  labels:
+    app: yap-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: yap-frontend
+  template:
+    metadata:
+      labels:
+        app: yap-frontend
+    spec:
+      containers:
+      - name: yap-frontend
+        image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        env:
+        - name: NODE_ENV
+          value: "production"

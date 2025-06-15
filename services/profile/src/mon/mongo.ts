@@ -23,6 +23,14 @@ export interface Profile {
   encrypted_mnemonic?: string;
   salt?: string;
   nonce?: string;
+  
+  // SECURE PASSPHRASE ARCHITECTURE FIELDS (NEW)
+  encryptedStretchedKey?: number[];    // AES-GCM encrypted PBKDF2 output
+  encryptionSalt?: number[];           // Salt for deriving encryption key
+  stretchedKeyNonce?: number[];        // AES-GCM nonce for encrypted stretched key
+  mnemonic_salt?: string;             // Salt for mnemonic encryption
+  mnemonic_nonce?: string;            // Nonce for mnemonic encryption
+  
   encrypted_wallet_data?: {
     encrypted_mnemonic: string;
     salt: string;
@@ -67,6 +75,14 @@ const ProfileSchema: Schema = new Schema({
   encrypted_mnemonic: { type: String, select: false },
   salt: { type: String, select: false },
   nonce: { type: String, select: false },
+  
+  // SECURE PASSPHRASE ARCHITECTURE FIELDS (NEW)
+  encryptedStretchedKey: { type: [Number], select: false }, // AES-GCM encrypted PBKDF2 output
+  encryptionSalt: { type: [Number], select: false },        // Salt for deriving encryption key
+  stretchedKeyNonce: { type: [Number], select: false },     // AES-GCM nonce for encrypted stretched key
+  mnemonic_salt: { type: String, select: false },          // Salt for mnemonic encryption  
+  mnemonic_nonce: { type: String, select: false },         // Nonce for mnemonic encryption
+  
   encrypted_wallet_data: {
     encrypted_mnemonic: { type: String },
     salt: { type: String },

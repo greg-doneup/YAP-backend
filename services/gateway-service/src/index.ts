@@ -44,6 +44,9 @@ app.use("/learning", learningProxy);     // /learning/*
 app.use("/profile",  profileProxy);      // /profile/*
 app.use("/reward",   rewardProxy);       // /reward/*
 
+// Route waitlist API to profile service
+app.use("/api/waitlist", profileProxy);  // /api/waitlist/* -> profile service
+
 app.use("/dashboard", dashboard);
 app.use("/healthz",   health);
 

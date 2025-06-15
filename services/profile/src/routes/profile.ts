@@ -769,6 +769,165 @@ router.put('/:userId/wallet', async (req, res, next) => {
   }
 });
 
+/** PUT /profile/:userId/wallet-conversion - Update profile with secure wallet data for conversion */
+router.put('/:userId/wallet-conversion', async (req, res, next) => {
+  try {
+    const context = createSecurityContext(req);
+    const requestedUserId = req.params.userId;
+    
+    console.log(`🔄 Processing wallet conversion for user: ${requestedUserId}`);
+    
+    const { 
+      email,
+      name,
+      initial_language_to_learn,
+      wlw, 
+      encryptedStretchedKey,
+      encryptionSalt,
+      stretchedKeyNonce,
+      encrypted_mnemonic, 
+      mnemonic_salt, 
+      mnemonic_nonce, 
+      sei_wallet, 
+      eth_wallet,
+      encrypted_wallet_data,
+      secured_at, 
+      converted,
+      updatedAt
+    } = req.body;
+    
+    // Validate required secure fields
+    if (!encryptedStretchedKey || !encryptionSalt || !stretchedKeyNonce) {
+      return res.status(400).json({
+        error: 'missing_encrypted_passphrase_data',
+        message: 'Encrypted stretched passphrase data is required'
+      });
+    }
+    
+    if (!encrypted_mnemonic || !mnemonic_salt || !mnemonic_nonce) {
+      return res.status(400).json({
+        error: 'missing_encrypted_mnemonic_data',
+        message: 'Encrypted mnemonic data is required'
+      });
+    }
+    
+    if (!sei_wallet?.address || !eth_wallet?.address) {
+      return res.status(400).json({
+        error: 'missing_wallet_addresses',
+        message: 'Both SEI and ETH wallet addresses are required'
+      });
+    }
+    
+    // Prepare update with secure wallet data
+    const now = new Date().toISOString();
+    const updates = {
+      // Basic profile updates
+      ...(email && { email }),
+      ...(name && { name }),
+      ...(initial_language_to_learn && { initial_language_to_learn }),
+      
+      // Wallet status
+      wlw: wlw !== undefined ? wlw : true,
+      
+      // Encrypted stretched passphrase (server cannot decrypt)
+      encryptedStretchedKey,
+      encryptionSalt,
+      stretchedKeyNonce,
+      
+      // Encrypted mnemonic (encrypted with stretched key)
+      encrypted_mnemonic,
+      mnemonic_salt,
+      mnemonic_nonce,
+      
+      // Public wallet addresses
+      sei_wallet,
+      eth_wallet,
+      
+      // Enhanced wallet data for compatibility
+      encrypted_wallet_data: encrypted_wallet_data || {
+        encrypted_mnemonic,
+        salt: mnemonic_salt,
+        nonce: mnemonic_nonce,
+        sei_address: sei_wallet.address,
+        eth_address: eth_wallet.address
+      },
+      
+      // Metadata
+      secured_at: secured_at || now,
+      converted: converted !== undefined ? converted : true,
+      updatedAt: updatedAt || now
+    };
+    
+    try {
+      const result = await ProfileModel.findOneAndUpdate(
+        { userId: requestedUserId },
+        { $set: updates },
+        { new: true, runValidators: true }
+      );
+      
+      if (!result) {
+        return res.status(404).json({
+          error: 'profile_not_found',
+          message: 'Profile not found for conversion'
+        });
+      }
+      
+      console.log(`✅ Successfully converted profile ${requestedUserId} to secure wallet`);
+      
+      // Log successful wallet conversion
+      await auditLogger.logSecurityEvent(
+        SecurityEventType.PROFILE_UPDATE,
+        'secure_wallet_conversion',
+        `profile:${requestedUserId}`,
+        req,
+        true,
+        {
+          hasEncryptedStretchedKey: !!encryptedStretchedKey,
+          walletAddresses: {
+            sei: sei_wallet.address,
+            eth: eth_wallet.address
+          }
+        }
+      );
+      
+      res.json({
+        success: true,
+        message: 'Profile converted to secure wallet successfully',
+        userId: requestedUserId,
+        walletAddresses: {
+          seiAddress: sei_wallet.address,
+          ethAddress: eth_wallet.address
+        },
+        converted: true
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Error converting profile to secure wallet:', error);
+      
+      await auditLogger.logSecurityEvent(
+        SecurityEventType.SUSPICIOUS_ACTIVITY,
+        'secure_wallet_conversion_failed',
+        `profile:${requestedUserId}`,
+        req,
+        false,
+        {
+          error: error.message
+        }
+      );
+      
+      return res.status(500).json({
+        error: 'conversion_failed',
+        message: 'Failed to convert profile to secure wallet',
+        details: error.message
+      });
+    }
+    
+  } catch (err) {
+    console.error('❌ Unhandled error in wallet conversion:', err);
+    next(err);
+  }
+});
+
 /** GET /profile/:userId/gdpr/export - Export all user data (GDPR compliance) */
 router.get('/:userId/gdpr/export', async (req, res, next) => {
   try {

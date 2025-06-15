@@ -14,6 +14,7 @@ const REFRESH_TOKEN_EXPIRY = '30d';
 
 const GATEWAY_SERVICE_URL = process.env.GATEWAY_SERVICE_URL || 'http://gateway-service';
 const PROFILE_SERVICE_URL = process.env.PROFILE_SERVICE_URL || 'http://profile-service';
+const OFFCHAIN_PROFILE_SERVICE_URL = process.env.OFFCHAIN_PROFILE_SERVICE_URL || 'http://offchain-profile-service';
 const SKIP_PROFILE_CREATION = process.env.SKIP_PROFILE_CREATION === 'true';
 
 const router = Router();
@@ -884,6 +885,346 @@ router.post("/revoke", requireAuth(APP_JWT_SECRET), async (req: any, res) => {
     res.status(500).json({ 
       message: "Token revocation failed", 
       details: err.message 
+    });
+  }
+});
+
+/* ── POST /auth/secure-signup - SECURE PASSPHRASE ARCHITECTURE
+   Zero server-side passphrase exposure - all crypto done client-side
+*/
+router.post('/secure-signup', async (req, res, next) => {
+  try {
+    const startTime = Date.now();
+    const clientIp = SecurityValidator.getClientIp(req);
+    const userAgent = req.get('User-Agent') || 'unknown';
+    
+    console.log('🔐 Secure signup request received');
+    
+    const { 
+      email, 
+      name, 
+      language_to_learn,
+      // Encrypted stretched passphrase data (server cannot decrypt)
+      encryptedStretchedKey,
+      encryptionSalt,
+      stretchedKeyNonce,
+      // Encrypted mnemonic data (encrypted with stretched key)
+      encrypted_mnemonic,
+      mnemonic_salt,
+      mnemonic_nonce,
+      // Public wallet addresses
+      sei_address,
+      sei_public_key,
+      eth_address,
+      eth_public_key,
+      // Metadata
+      isWaitlistConversion,
+      signupMethod
+    } = req.body;
+
+    // Validate required fields
+    if (!email || !name || !language_to_learn) {
+      return res.status(400).json({ 
+        message: "Email, name, and language_to_learn are required" 
+      });
+    }
+
+    // Validate secure passphrase data
+    if (!encryptedStretchedKey || !encryptionSalt || !stretchedKeyNonce) {
+      return res.status(400).json({ 
+        message: "Encrypted passphrase data is required" 
+      });
+    }
+
+    // Validate encrypted mnemonic data
+    if (!encrypted_mnemonic || !mnemonic_salt || !mnemonic_nonce) {
+      return res.status(400).json({ 
+        message: "Encrypted mnemonic data is required" 
+      });
+    }
+
+    // Validate wallet addresses
+    if (!sei_address || !eth_address) {
+      return res.status(400).json({ 
+        message: "Wallet addresses are required" 
+      });
+    }
+
+    // Sanitize inputs
+    const sanitizedEmail = SecurityValidator.sanitizeInput(email);
+    const sanitizedName = SecurityValidator.sanitizeInput(name);
+    
+    // Check if user already exists (waitlist user conversion)
+    let existingProfile = null;
+    let userId = null;
+    
+    try {
+      const profileResponse = await axios.get(`${PROFILE_SERVICE_URL}/profile/email/${encodeURIComponent(sanitizedEmail)}`);
+      existingProfile = profileResponse.data;
+      userId = existingProfile.userId;
+      
+      console.log('🔄 Converting existing user to secure wallet:', {
+        userId,
+        isWaitlistUser: existingProfile.isWaitlistUser,
+        hasWallet: existingProfile.wlw
+      });
+      
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        // New user - generate userId
+        userId = crypto.randomBytes(32).toString('hex');
+        console.log('🆕 Creating new secure wallet user:', userId);
+      } else {
+        console.error('Error checking existing profile:', err.message);
+        return res.status(500).json({ message: 'Error checking user profile' });
+      }
+    }
+
+    // Create secure profile data (NO RAW PASSPHRASE STORED!)
+    const secureProfileData = {
+      userId,
+      email: sanitizedEmail,
+      name: sanitizedName,
+      initial_language_to_learn: language_to_learn,
+      wlw: true, // Has wallet
+      
+      // Encrypted stretched passphrase (server cannot decrypt)
+      encryptedStretchedKey,
+      encryptionSalt,
+      stretchedKeyNonce,
+      
+      // Encrypted mnemonic (encrypted with stretched key)
+      encrypted_mnemonic,
+      mnemonic_salt,
+      mnemonic_nonce,
+      
+      // Public wallet addresses
+      sei_wallet: {
+        address: sei_address,
+        public_key: sei_public_key || 'sei_pub_' + crypto.randomBytes(16).toString('hex')
+      },
+      eth_wallet: {
+        address: eth_address,
+        public_key: eth_public_key || 'eth_pub_' + crypto.randomBytes(16).toString('hex')
+      },
+      
+      // Enhanced wallet data
+      encrypted_wallet_data: {
+        encrypted_mnemonic,
+        salt: mnemonic_salt,
+        nonce: mnemonic_nonce,
+        sei_address,
+        eth_address
+      },
+      
+      secured_at: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      converted: existingProfile?.isWaitlistUser ? true : undefined
+    };
+
+    // Create or update profile
+    let profileResult;
+    if (existingProfile) {
+      // Update existing profile with secure wallet data
+      profileResult = await axios.put(
+        `${PROFILE_SERVICE_URL}/profile/${userId}/wallet-conversion`,
+        secureProfileData
+      );
+      console.log('✅ Updated existing profile with secure wallet');
+    } else {
+      // Create new profile - add createdAt for new profiles
+      const newProfileData = {
+        ...secureProfileData,
+        createdAt: new Date().toISOString()
+      };
+      profileResult = await axios.post(`${PROFILE_SERVICE_URL}/profile`, newProfileData);
+      console.log('✅ Created new secure profile');
+    }
+
+    // Create JWT token
+    const jwtPayload = {
+      userId,
+      email: sanitizedEmail,
+      name: sanitizedName,
+      walletAddress: sei_address,
+      ethWalletAddress: eth_address
+    };
+
+    const token = jwt.sign(jwtPayload, APP_JWT_SECRET, { expiresIn: '24h' });
+    const refreshToken = jwt.sign({ userId }, APP_REFRESH_SECRET, { expiresIn: '7d' });
+
+    // Create offchain profile
+    try {
+      await axios.post(`${OFFCHAIN_PROFILE_SERVICE_URL}/profile`, {
+        userId,
+        walletAddress: sei_address,
+        ethWalletAddress: eth_address,
+        xp: isWaitlistConversion ? 1000 : 0, // Bonus XP for waitlist users
+        streak: 0
+      });
+      console.log('✅ Created offchain profile');
+    } catch (offchainError: any) {
+      console.warn('⚠️ Failed to create offchain profile:', offchainError.message);
+      // Continue - this is not critical for signup
+    }
+
+    // Log successful secure signup
+    await auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.AUTHENTICATION_SUCCESS,
+      email: sanitizedEmail,
+      clientIp,
+      userAgent,
+      success: true,
+      details: `Secure signup completed for ${sanitizedEmail}`,
+      metadata: {
+        signupMethod: 'secure_passphrase',
+        isWaitlistConversion: !!isWaitlistConversion,
+        hasEncryptedStretchedKey: !!encryptedStretchedKey,
+        responseTime: Date.now() - startTime
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      userId,
+      token,
+      refreshToken,
+      walletAddresses: {
+        seiAddress: sei_address,
+        evmAddress: eth_address
+      },
+      starting_points: isWaitlistConversion ? 1000 : 0,
+      isWaitlistConversion: !!isWaitlistConversion,
+      message: isWaitlistConversion 
+        ? 'Waitlist user converted to secure account successfully'
+        : 'Secure wallet account created successfully'
+    });
+
+  } catch (error: any) {
+    console.error('❌ Secure signup failed:', error);
+    
+    await auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.AUTHENTICATION_FAILURE,
+      email: req.body.email,
+      clientIp: SecurityValidator.getClientIp(req),
+      userAgent: req.get('User-Agent') || 'unknown',
+      success: false,
+      details: `Secure signup failed: ${error.message}`,
+      metadata: {
+        error: error.message,
+        signupMethod: 'secure_passphrase'
+      }
+    });
+
+    next(error);
+  }
+});
+
+/* ── POST /auth/secure-wallet-recovery ─────────────────────────────
+   Recover wallet using secure passphrase (client-side verification only)
+   Body: { email, encryptedStretchedKey }
+   Response: { encrypted_mnemonic, mnemonic_salt, mnemonic_nonce, wallet_addresses }
+*/
+router.post('/secure-wallet-recovery', async (req, res) => {
+  try {
+    const clientIp = SecurityValidator.getClientIp(req);
+    const userAgent = req.get('User-Agent') || 'unknown';
+    
+    console.log('🔑 Secure wallet recovery request received');
+    
+    const { email, encryptedStretchedKey } = req.body;
+    
+    // Validate required fields
+    if (!email || !encryptedStretchedKey) {
+      return res.status(400).json({ 
+        error: 'invalid_request',
+        message: 'Email and encrypted stretched key are required' 
+      });
+    }
+    
+    // Sanitize email
+    const sanitizedEmail = SecurityValidator.sanitizeInput(email);
+    
+    // Find user profile
+    let userProfile;
+    try {
+      const profileResponse = await axios.get(`${PROFILE_SERVICE_URL}/profile/email/${encodeURIComponent(sanitizedEmail)}`);
+      userProfile = profileResponse.data;
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        await auditLogger.logSecurityEvent({
+          eventType: SecurityEventType.AUTHENTICATION_FAILURE,
+          email: sanitizedEmail,
+          clientIp,
+          userAgent,
+          success: false,
+          details: { action: 'wallet_recovery', error: 'user_not_found' }
+        });
+        return res.status(404).json({ 
+          error: 'user_not_found',
+          message: 'No account found with this email' 
+        });
+      }
+      throw err;
+    }
+    
+    // Check if user has secure wallet setup
+    if (!userProfile.encryptedStretchedKey || !userProfile.encrypted_mnemonic) {
+      return res.status(400).json({ 
+        error: 'no_secure_wallet',
+        message: 'No secure wallet found for this account' 
+      });
+    }
+    
+    // Return encrypted wallet data for client-side decryption
+    // Client will verify passphrase by attempting to decrypt
+    await auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.AUTHENTICATION_SUCCESS,
+      email: sanitizedEmail,
+      userId: userProfile.userId,
+      clientIp,
+      userAgent,
+      success: true,
+      details: { action: 'wallet_recovery_data_provided' }
+    });
+    
+    res.json({
+      success: true,
+      encrypted_wallet_data: {
+        // Encrypted stretched key data (for passphrase verification)
+        encryptedStretchedKey: userProfile.encryptedStretchedKey,
+        encryptionSalt: userProfile.encryptionSalt,
+        stretchedKeyNonce: userProfile.stretchedKeyNonce,
+        
+        // Encrypted mnemonic data
+        encrypted_mnemonic: userProfile.encrypted_mnemonic,
+        mnemonic_salt: userProfile.mnemonic_salt,
+        mnemonic_nonce: userProfile.mnemonic_nonce,
+        
+        // Public wallet addresses
+        wallet_addresses: {
+          sei_address: userProfile.sei_wallet?.address,
+          eth_address: userProfile.eth_wallet?.address
+        }
+      },
+      user_id: userProfile.userId
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Secure wallet recovery failed:', error);
+    
+    await auditLogger.logSecurityEvent({
+      eventType: SecurityEventType.AUTHENTICATION_FAILURE,
+      email: req.body.email,
+      clientIp: SecurityValidator.getClientIp(req),
+      userAgent: req.get('User-Agent') || 'unknown',
+      success: false,
+      details: { action: 'wallet_recovery', error: error.message }
+    });
+    
+    res.status(500).json({ 
+      error: 'recovery_failed',
+      message: 'Wallet recovery failed' 
     });
   }
 });

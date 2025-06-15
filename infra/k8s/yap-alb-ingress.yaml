@@ -1,0 +1,234 @@
+# ALB Ingress Configuration for YAP Backend
+# Updates the existing yap-ingress.yaml to use AWS Load Balancer Controller
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yap-services-alb
+  annotations:
+    # AWS Load Balancer Controller annotations
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    
+    # SSL/TLS configuration
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID
+    
+    # Health check configuration
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
+    
+    # Load balancer attributes
+    alb.ingress.kubernetes.io/load-balancer-attributes: |
+      routing.http2.enabled=true,
+      idle_timeout.timeout_seconds=60,
+      deletion_protection.enabled=false
+    
+    # Security groups
+    alb.ingress.kubernetes.io/security-groups: sg-xxxxxxxxxx
+    
+    # Tags for cost allocation
+    alb.ingress.kubernetes.io/tags: |
+      Project=YAP,
+      Environment=production,
+      ManagedBy=kubernetes
+    
+    # CORS configuration
+    alb.ingress.kubernetes.io/actions.response-headers: |
+      {
+        "type": "fixed-response",
+        "fixedResponseConfig": {
+          "contentType": "text/plain",
+          "statusCode": "200",
+          "messageBody": "OK"
+        }
+      }
+
+spec:
+  ingressClassName: alb
+  rules:
+    # Main application domain
+    - host: perci.goyap.ai
+      http:
+        paths:
+          # Frontend application
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-landing
+                port:
+                  number: 80
+          
+          # API routes for backend services
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          
+          - path: /profile
+            pathType: Prefix
+            backend:
+              service:
+                name: profile-service
+                port:
+                  number: 80
+          
+          - path: /offchain
+            pathType: Prefix
+            backend:
+              service:
+                name: offchain-profile
+                port:
+                  number: 80
+          
+          - path: /learning
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-service
+                port:
+                  number: 80
+          
+          - path: /wallet
+            pathType: Prefix
+            backend:
+              service:
+                name: wallet-service
+                port:
+                  number: 8000
+          
+          - path: /reward
+            pathType: Prefix
+            backend:
+              service:
+                name: reward-service
+                port:
+                  number: 80
+          
+          - path: /tts
+            pathType: Prefix
+            backend:
+              service:
+                name: tts-service
+                port:
+                  number: 80
+          
+          - path: /grammar
+            pathType: Prefix
+            backend:
+              service:
+                name: grammar-service
+                port:
+                  number: 80
+          
+          - path: /voice-score
+            pathType: Prefix
+            backend:
+              service:
+                name: voice-score
+                port:
+                  number: 80
+          
+          - path: /alignment
+            pathType: Prefix
+            backend:
+              service:
+                name: alignment-service
+                port:
+                  number: 80
+          
+          - path: /pronunciation
+            pathType: Prefix
+            backend:
+              service:
+                name: pronunciation-scorer
+                port:
+                  number: 80
+          
+          # Gateway service for API fallback
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 80
+          
+          # Dashboard and monitoring
+          - path: /dashboard
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 80
+          
+          # Health check endpoint
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 80
+
+---
+# Target Group Binding for fine-grained control
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata:
+  name: yap-services-tgb
+spec:
+  serviceRef:
+    name: gateway-service
+    port: 80
+  targetGroupARN: arn:aws:elasticloadbalancing:us-east-1:ACCOUNT_ID:targetgroup/yap-gateway-tg/1234567890abcdef
+  targetType: ip
+  
+---
+# Additional ingress for staging/development environments
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yap-services-staging
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/STAGING_CERTIFICATE_ID
+    alb.ingress.kubernetes.io/tags: |
+      Project=YAP,
+      Environment=staging,
+      ManagedBy=kubernetes
+spec:
+  ingressClassName: alb
+  rules:
+    - host: staging.perci.goyap.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-landing
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 80

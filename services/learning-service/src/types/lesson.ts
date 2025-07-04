@@ -2,6 +2,8 @@
 export interface Lesson {
   _id?: string;
   lesson_id: string;
+  title?: string;
+  description?: string;
   language: string;
   level: string;
   focus: string;
@@ -35,8 +37,8 @@ export interface ExerciseItem {
 // User's progress through lessons
 export interface UserProgress {
   userId: string;               // User ID
-  currentLessonId: string;      // Current lesson ID
-  currentWordId: string;        // Current word ID within the lesson
+  currentLessonId?: string;     // Current lesson ID
+  currentWordId?: string;       // Current word ID within the lesson
   nextWordAvailableAt: string;  // ISO timestamp of when next word is available
   completedLessons: string[];   // Array of completed lesson IDs
   completedWords: string[];     // Array of completed word IDs
@@ -44,6 +46,13 @@ export interface UserProgress {
   streak: number;               // Current daily streak
   level: number;                // User's current level
   totalXp: number;              // Total experience points
+  
+  // Dynamic lesson generation fields
+  lastGeneratedLesson?: string; // ID of last generated lesson
+  lastGeneratedAt?: string;     // ISO timestamp of last generation
+  languageChangedAt?: string;   // ISO timestamp of last language change
+  previousLanguageBackup?: any; // Backup of progress from previous language
+  recentTopics?: string[];      // Recently covered topics for personalization
 }
 
 // Word-level pronunciation details

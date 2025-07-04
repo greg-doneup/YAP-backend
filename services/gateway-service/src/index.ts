@@ -1,13 +1,9 @@
 import express from "express";
 import dotenv from "dotenv";
+import axios from "axios";
 import { randomUUID } from "crypto";
 import { corsMw } from "./middleware/cors";
-import { limiter } from "./middleware/rateLimit";
 import { gatewaySecurityMiddleware } from "./middleware/security";
-import authProxy from "./proxy/auth";
-import learningProxy from "./proxy/learning";
-import profileProxy from "./proxy/profile";
-import rewardProxy from "./proxy/reward";
 import dashboard from "./routes/dashboard";
 import health from "./routes/health";
 import { registry, gatewayRequests } from "./metrics";
@@ -15,6 +11,9 @@ import { registry, gatewayRequests } from "./metrics";
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// Trust proxy headers from NGINX ingress
+app.set('trust proxy', true);
 
 // Store security middleware instance for access in routes
 app.locals.gatewaySecurity = gatewaySecurityMiddleware;
@@ -32,35 +31,278 @@ app.use(gatewaySecurityMiddleware.validateGatewayRequest());
 app.use(gatewaySecurityMiddleware.gatewayRateLimit());
 app.use(gatewaySecurityMiddleware.requestMonitoring());
 
-// CORS and rate limiting
+// CORS
 app.use(corsMw);
-app.use(limiter); // Additional rate limiting middleware
+// Note: Rate limiting is handled by gatewaySecurityMiddleware.gatewayRateLimit() above
 
 // Middleware to parse JSON bodies with size limit
 app.use(express.json({ limit: '1mb' }));
 
-app.use("/auth",    authProxy);          // /auth/*
-app.use("/learning", learningProxy);     // /learning/*
-app.use("/profile",  profileProxy);      // /profile/*
-app.use("/reward",   rewardProxy);       // /reward/*
+// Direct routing to services (no proxies needed in Kubernetes)
+// Waitlist endpoint - forward directly to auth service
+app.use("/api/waitlist", async (req, res, next) => {
+  try {
+    const authServiceUrl = `http://auth-service/auth/waitlist${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${authServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: authServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service'
+      },
+      timeout: 15000
+    });
 
-// Route waitlist API to profile service
-app.use("/api/waitlist", profileProxy);  // /api/waitlist/* -> profile service
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to auth service:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'Auth service is not responding' 
+      });
+    }
+  }
+});
+
+// Auth service routes - forward directly
+app.use("/auth", async (req, res, next) => {
+  try {
+    const authServiceUrl = `http://auth-service${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${authServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: authServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service'
+      },
+      timeout: 15000
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to auth service:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'Auth service is not responding' 
+      });
+    }
+  }
+});
+
+// API Auth service routes - forward directly (for frontend compatibility)
+app.use("/api/auth", async (req, res, next) => {
+  try {
+    const authServiceUrl = `http://auth-service/auth${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${authServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: authServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service'
+      },
+      timeout: 15000
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to auth service:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'Auth service is not responding' 
+      });
+    }
+  }
+});
+
+// Learning service routes - forward directly
+app.use("/learning", async (req, res, next) => {
+  try {
+    const learningServiceUrl = `http://learning-service${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${learningServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: learningServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service'
+      },
+      timeout: 15000
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to learning service:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'Learning service is not responding' 
+      });
+    }
+  }
+});
+
+// Profile service routes - forward directly
+app.use("/profile", async (req, res, next) => {
+  try {
+    const profileServiceUrl = `http://profile-service${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${profileServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: profileServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service'
+      },
+      timeout: 15000
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to profile service:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'Profile service is not responding' 
+      });
+    }
+  }
+});
+
+// Daily allowances route - forward to learning service
+app.use("/daily-allowances", async (req, res, next) => {
+  try {
+    const learningServiceUrl = `http://learning-service/daily-allowances${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${learningServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: learningServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service',
+        'authorization': req.headers.authorization || ''
+      },
+      timeout: 15000
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to learning service for daily allowances:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'Learning service is not responding' 
+      });
+    }
+  }
+});
+
+// Reward service routes - forward directly
+app.use("/reward", async (req, res, next) => {
+  try {
+    const rewardServiceUrl = `http://reward-service${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${rewardServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: rewardServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service'
+      },
+      timeout: 15000
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to reward service:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'Reward service is not responding' 
+      });
+    }
+  }
+});
+
+// AI Chat service routes - forward directly  
+app.use("/api/chat", async (req, res, next) => {
+  try {
+    const chatServiceUrl = `http://ai-chat-service${req.path}`;
+    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${chatServiceUrl}`);
+    
+    const response = await axios({
+      method: req.method.toLowerCase() as any,
+      url: chatServiceUrl,
+      data: req.body,
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': req.ip,
+        'user-agent': req.get('user-agent') || 'gateway-service',
+        'authorization': req.headers.authorization || ''
+      },
+      timeout: 30000 // Longer timeout for AI responses
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error: any) {
+    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to AI chat service:`, error.message);
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(504).json({ 
+        error: 'Service unavailable', 
+        message: 'AI Chat service is not responding' 
+      });
+    }
+  }
+});
 
 app.use("/dashboard", dashboard);
 app.use("/healthz",   health);
 
-// Security monitoring endpoint
+// Security monitoring endpoint (no authentication required)
 app.get('/gateway/security/metrics', async (req, res) => {
   try {
-    // Basic IP-based authentication for security metrics
-    const clientIp = gatewaySecurityMiddleware['getClientIp'](req);
-    const allowedIPs = (process.env.ADMIN_IPS || '127.0.0.1,::1').split(',');
-    
-    if (!allowedIPs.includes(clientIp)) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-    
     const metrics = await gatewaySecurityMiddleware.getSecurityMetrics();
     res.json(metrics);
   } catch (error) {
@@ -73,16 +315,23 @@ app.get('/healthz', (_, res) => {
   res.json({ 
     status: 'ok', 
     service: 'gateway',
-    version: '2.0.0',
+    version: '3.0.0',
     timestamp: new Date().toISOString(),
+    architecture: 'direct_service_communication',
+    routing_features: [
+      'direct_axios_calls',
+      'kubernetes_service_discovery',
+      'no_proxy_overhead',
+      'simplified_error_handling'
+    ],
     security_features: [
-      'enhanced_rate_limiting',
+      'rate_limiting',
       'ddos_protection',
       'request_validation',
       'security_headers',
-      'request_monitoring',
-      'ip_blocking'
-    ]
+      'request_monitoring'
+    ],
+    note: 'Simplified architecture for self-contained Kubernetes cluster - no authentication required'
   });
 });
 

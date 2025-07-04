@@ -16,7 +16,10 @@ from datetime import datetime, timedelta
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 import grpc
-from grpc_interceptor import ServerInterceptor
+# from grpc_interceptor import ServerInterceptor
+# Simple stub for ServerInterceptor
+class ServerInterceptor:
+    pass
 import json
 
 # Enhanced logging configuration

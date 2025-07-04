@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: reward
-          image: reward-service
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-reward-service:latest
           ports: [{ containerPort: 8080 }]
           envFrom:
             - secretRef: { name: reward-secrets }

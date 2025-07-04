@@ -1,12 +1,47 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 
 // This is a stub implementation of the authentication middleware
 // that will be replaced with the real implementation during Docker build
 
 export function requireAuth(jwtSecret: string) {
   return (req: Request, res: Response, next: NextFunction) => {
-    // For local development, just pass through
-    next();
+    // Check for internal service authentication first
+    const serviceSecret = req.headers['x-internal-service-secret'] as string;
+    const expectedServiceSecret = process.env.INTERNAL_SERVICE_SECRET;
+    
+    if (serviceSecret && expectedServiceSecret && serviceSecret === expectedServiceSecret) {
+      console.log('Internal service authentication successful');
+      // Add a mock user object for internal service calls
+      (req as any).user = {
+        sub: 'internal-service',
+        type: 'internal'
+      };
+      return next();
+    }
+    
+    // Check for regular JWT authentication
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    
+    if (!token) {
+      return res.status(401).json({
+        error: 'unauthorized',
+        message: 'Access token required'
+      });
+    }
+    
+    try {
+      const decoded = jwt.verify(token, jwtSecret);
+      (req as any).user = decoded;
+      next();
+    } catch (error) {
+      console.error('JWT verification failed:', error);
+      return res.status(401).json({
+        error: 'unauthorized',
+        message: 'Invalid or expired token'
+      });
+    }
   };
 }
 

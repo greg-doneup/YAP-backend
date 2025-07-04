@@ -39,8 +39,14 @@ def main():
     os.environ["GPU_ENABLED"] = str(args.gpu)
     os.environ["STORAGE_ENABLED"] = str(args.s3)
 
-    # Import server and start it
-    from app.server import serve
+    # Import appropriate server based on GPU setting
+    if args.gpu:
+        from app.server import serve
+        logger.info("Starting full GPU-enabled alignment service")
+    else:
+        from app.lightweight_server import serve
+        logger.info("Starting lightweight CPU-only alignment service")
+    
     serve()
 
 if __name__ == "__main__":

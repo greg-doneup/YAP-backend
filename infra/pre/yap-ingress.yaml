@@ -22,7 +22,6 @@ spec:
   tls:
   - hosts:
     - goyap.ai
-    - www.goyap.ai
     secretName: yap-tls-secret
   rules:
     - host: goyap.ai
@@ -61,40 +60,12 @@ spec:
                 name: offchain-profile
                 port:
                   number: 80
-    
-    - host: www.goyap.ai
-      http:
-        paths:
-          # serve the Angular front-end at the root path
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: yap-landing
-                port:
-                  number: 80
-          - path: /auth
-            pathType: Prefix
-            backend:
-              service:
-                name: auth-service
-                port:
-                  number: 80
                   
-          # Profile Service
-          - path: /profile
+          # Gateway Service (waitlist API)
+          - path: /api/waitlist
             pathType: Prefix
             backend:
               service:
-                name: profile-service
-                port:
-                  number: 80
-                  
-          # Offchain Profile
-          - path: /offchain
-            pathType: Prefix
-            backend:
-              service:
-                name: offchain-profile
+                name: gateway-service
                 port:
                   number: 80

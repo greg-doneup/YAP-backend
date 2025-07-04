@@ -12,12 +12,17 @@ spec:
     spec:
       containers:
         - name: auth
-          image: auth-service            # local image tag
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-auth-service:cors-fix-v1
           ports:
             - containerPort: 8080
           envFrom:                         # ← mount the whole secret
             - secretRef:
                 name: auth-secrets
+            - secretRef:
+                name: mongodb-secrets
+          env:
+            - name: ALLOWED_ORIGINS
+              value: "https://perci.goyap.ai,https://app.goyap.ai,https://goyap.ai,http://localhost:8100"
           readinessProbe:
             httpGet:
               path: /healthz

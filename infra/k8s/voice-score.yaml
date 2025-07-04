@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: voice-score
-          image: voice-score  # For local development with Skaffold
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-voice-score-service:latest  # For local development with Skaffold
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 50051, name: grpc }]
           resources:

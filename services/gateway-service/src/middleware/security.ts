@@ -24,7 +24,7 @@ export class GatewaySecurityMiddleware {
     }
   }
 
-  // Enhanced rate limiting with service-specific limits
+  // Enhanced rate limiting with service-specific limits (simplified for no-auth)
   gatewayRateLimit() {
     return (req: Request, res: Response, next: NextFunction) => {
       const clientIp = this.getClientIp(req);
@@ -33,13 +33,14 @@ export class GatewaySecurityMiddleware {
       const windowMinutes = 5;
       const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000);
 
-      // Service-specific rate limits
+      // Simplified service limits for no-auth environment
       const serviceLimits: { [key: string]: number } = {
-        'auth': 20,          // 20 requests per 5 minutes for auth
-        'profile': 50,       // 50 requests per 5 minutes for profile
-        'learning': 100,     // 100 requests per 5 minutes for learning
-        'reward': 30,        // 30 requests per 5 minutes for rewards
-        'default': 60        // Default limit
+        'auth': 100,         // Increased for waitlist signups
+        'profile': 100,      // Increased since no auth required
+        'learning': 200,     // Increased for public access
+        'reward': 100,       // Increased for public access
+        'api': 100,          // For /api/waitlist endpoints
+        'default': 100       // More generous default limit
       };
 
       const maxRequests = serviceLimits[service] || serviceLimits.default;
@@ -80,13 +81,13 @@ export class GatewaySecurityMiddleware {
     };
   }
 
-  // DDoS protection with intelligent blocking
+  // DDoS protection (simplified for no-auth)
   ddosProtection() {
     return (req: Request, res: Response, next: NextFunction) => {
       const clientIp = this.getClientIp(req);
       const now = new Date();
       
-      // Check for rapid fire requests (more than 10 requests in 1 second)
+      // Check for rapid fire requests (more than 50 requests in 1 second - more lenient)
       const rapidFireKey = `${clientIp}:rapid`;
       const rapidFireWindow = new Date(now.getTime() - 1000); // 1 second window
       
@@ -95,14 +96,14 @@ export class GatewaySecurityMiddleware {
         this.requestCounts.set(rapidFireKey, { count: 1, windowStart: now });
       } else {
         rapidFireCount.count++;
-        if (rapidFireCount.count > 10) {
+        if (rapidFireCount.count > 50) { // Increased threshold for no-auth
           this.logSecurityEvent('ddos_attempt_detected', clientIp, {
             rapidFireCount: rapidFireCount.count,
             endpoint: req.path,
             userAgent: req.headers['user-agent']
           });
           
-          // Block this IP for 1 hour
+          // Block this IP for 10 minutes (shorter than before)
           this.failedAttempts.set(clientIp, {
             count: 999,
             lastAttempt: now,
@@ -112,7 +113,7 @@ export class GatewaySecurityMiddleware {
           return res.status(429).json({
             error: 'too_many_requests',
             message: 'Suspicious activity detected. Access temporarily blocked.',
-            retryAfter: 3600
+            retryAfter: 600 // 10 minutes
           });
         }
       }
@@ -121,29 +122,29 @@ export class GatewaySecurityMiddleware {
     };
   }
 
-  // Request validation and sanitization
+  // Request validation (simplified for no-auth)
   validateGatewayRequest() {
     return (req: Request, res: Response, next: NextFunction) => {
       const clientIp = this.getClientIp(req);
 
-      // Check for blocked IPs
+      // Check for blocked IPs (reduced block time)
       const failedData = this.failedAttempts.get(clientIp);
       if (failedData?.blocked) {
-        const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        if (failedData.lastAttempt > hourAgo) {
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000); // Reduced to 10 minutes
+        if (failedData.lastAttempt > tenMinutesAgo) {
           return res.status(429).json({
             error: 'ip_blocked',
             message: 'IP address temporarily blocked due to suspicious activity'
           });
         } else {
-          // Unblock after 1 hour
+          // Unblock after 10 minutes
           this.failedAttempts.delete(clientIp);
         }
       }
 
-      // Validate request size
+      // Validate request size (increased for no-auth)
       const contentLength = parseInt(req.headers['content-length'] || '0');
-      if (contentLength > 2 * 1024 * 1024) { // 2MB limit
+      if (contentLength > 5 * 1024 * 1024) { // Increased to 5MB limit
         this.logSecurityEvent('oversized_request', clientIp, {
           contentLength,
           endpoint: req.path
@@ -154,16 +155,7 @@ export class GatewaySecurityMiddleware {
         });
       }
 
-      // Check for suspicious user agents
-      const userAgent = req.headers['user-agent'] as string;
-      if (!userAgent || this.isSuspiciousUserAgent(userAgent)) {
-        this.logSecurityEvent('suspicious_user_agent', clientIp, {
-          userAgent,
-          endpoint: req.path
-        });
-      }
-
-      // Check for SQL injection patterns in query parameters
+      // Basic validation only (removed strict user agent checking for public API)
       const queryString = JSON.stringify(req.query);
       const sqlPatterns = [
         /union\s+select/i, /drop\s+table/i, /insert\s+into/i, /delete\s+from/i,

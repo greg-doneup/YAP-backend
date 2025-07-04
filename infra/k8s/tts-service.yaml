@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
         - name: tts-service
-          image: tts-service  # For local development with Skaffold
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-tts-service:20250624-115400  # Fixed HTTP feedback API config
           imagePullPolicy: IfNotPresent
           ports: 
             - containerPort: 50053
@@ -32,8 +32,8 @@ spec:
             - name: AZURE_SPEECH_KEY
               valueFrom:
                 secretKeyRef:
-                  name: azure-credentials
-                  key: speech_key
+                  name: ai-services-secrets
+                  key: AZURE_SPEECH_KEY
                   optional: false
             - name: AZURE_SERVICE_REGION
               value: "eastus"
@@ -60,26 +60,32 @@ spec:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: aws-credentials
-                  key: access_key
+                  name: ai-services-secrets
+                  key: AWS_ACCESS_KEY_ID
                   optional: true
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: aws-credentials
-                  key: secret_key
+                  name: ai-services-secrets
+                  key: AWS_SECRET_ACCESS_KEY
                   optional: true
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka-service:9092"  # Will fail gracefully if not available
+            - name: KAFKA_ENABLED
+              value: "false"  # Disable Kafka for now
+            - name: USE_HTTP_FEEDBACK_API
+              value: "false"  # Disable HTTP feedback API for now
           resources:
-            requests: { cpu: "500m", memory: "1Gi" }
-            limits:   { cpu: "1.5",  memory: "3Gi" }
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "500m",  memory: "1Gi" }
           readinessProbe:
-            exec:
-              command: ["/bin/grpc_health_probe", "-addr=:50053"]
+            tcpSocket:
+              port: 50053
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
-            exec:
-              command: ["/bin/grpc_health_probe", "-addr=:50053"]
+            tcpSocket:
+              port: 50053
             initialDelaySeconds: 15
             periodSeconds: 15
           volumeMounts:
@@ -88,8 +94,7 @@ spec:
               readOnly: false
       volumes:
         - name: tts-storage
-          persistentVolumeClaim:
-            claimName: tts-storage-pvc
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

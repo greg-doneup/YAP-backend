@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: grammar
-          image: grammar-service
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-grammar-service:latest
           ports:
             - containerPort: 8000
               name: http

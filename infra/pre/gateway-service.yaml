@@ -8,12 +8,23 @@ spec:
     metadata: { labels: { app: gateway-service } }
     spec:
       containers:
-        - name: gateway
-          image: registry.digitalocean.com/yap-cr/gateway-service:latest
+        - name: gateway-service
+          image: registry.digitalocean.com/yap-cr/gateway-service:api-auth-routing-v1
           imagePullPolicy: Always
           ports: [{ containerPort: 8080 }]
           envFrom:
             - secretRef: { name: profile-secrets }   # provides APP_JWT_SECRET
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secrets
+                  key: MONGO_URI
+            - name: MONGO_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secrets
+                  key: MONGO_DB_NAME
 ---
 apiVersion: v1
 kind: Service

@@ -43,7 +43,7 @@ router.get("/", async (req, res) => {
     }
     
     // Get the current lesson data
-    const lesson = await getLessonById(userProgress.currentLessonId);
+    const lesson = userProgress.currentLessonId ? await getLessonById(userProgress.currentLessonId) : null;
     
     if (!lesson) {
       // Fallback if lesson not found

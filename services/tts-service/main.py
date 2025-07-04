@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Import application modules
 from app.server import TTSService
 from app.config import Config
-from app.security import TTSSecurityInterceptor
+from app.security import TTSSecurityInterceptor, TTSSecurityMiddleware
 from proto import tts_pb2_grpc
 
 def main():
@@ -37,8 +37,9 @@ def main():
         else:
             logger.info("Metrics collection is disabled")
         
-        # Initialize security interceptor
-        security_interceptor = TTSSecurityInterceptor()
+        # Initialize security middleware and interceptor
+        security_middleware = TTSSecurityMiddleware()
+        security_interceptor = TTSSecurityInterceptor(security_middleware)
         logger.info("Security interceptor initialized")
         
         # Start gRPC server with security interceptor

@@ -3,11 +3,11 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import "../token/YAPToken.sol";
+import "../token/YapToken.sol";
 
 /**
  * @title BurnRedeemer
@@ -207,7 +207,7 @@ contract BurnRedeemer is ERC721Enumerable, AccessControl, ReentrancyGuard {
      * @return The URI for the badge metadata
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_exists(tokenId), "BurnRedeemer: URI query for nonexistent token");
+        require(_ownerOf(tokenId) != address(0), "BurnRedeemer: URI query for nonexistent token");
         
         uint256 badgeTypeId = tokenToBadgeType[tokenId];
         return badgeTypes[badgeTypeId].baseURI;
@@ -216,7 +216,8 @@ contract BurnRedeemer is ERC721Enumerable, AccessControl, ReentrancyGuard {
     /**
      * @dev Get all badges owned by a user
      * @param user The user address
-     * @return badges Array of badge details
+     * @return tokenIds Array of token IDs
+     * @return badgeTypeIds Array of badge type IDs
      */
     function getUserBadges(address user) external view returns (
         uint256[] memory tokenIds,
@@ -317,5 +318,12 @@ contract BurnRedeemer is ERC721Enumerable, AccessControl, ReentrancyGuard {
     function recoverERC20(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(token != address(yapToken), "BurnRedeemer: cannot recover YAP token");
         IERC20(token).transfer(to, amount);
+    }
+    
+    /**
+     * @dev See {IERC165-supportsInterface}.
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721Enumerable, AccessControl) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }

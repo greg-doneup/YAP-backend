@@ -616,6 +616,40 @@ class WalletSecurityMiddleware:
         # Fallback to client host
         return getattr(request.client, 'host', 'unknown')
 
+    def protect_endpoint(self, endpoint_name: str):
+        """Decorator for endpoint protection"""
+        def decorator(func):
+            # Import functools here to preserve function metadata
+            import functools
+            import inspect
+            
+            @functools.wraps(func)
+            async def wrapper(*args, **kwargs):
+                # Extract request from function arguments
+                sig = inspect.signature(func)
+                bound_args = sig.bind(*args, **kwargs)
+                bound_args.apply_defaults()
+                
+                # Find the request parameter
+                request = None
+                for param_name, param_value in bound_args.arguments.items():
+                    if isinstance(param_value, Request):
+                        request = param_value
+                        break
+                
+                if request is None:
+                    raise HTTPException(status_code=500, detail="Request object not found")
+                
+                # Validate the request
+                is_valid, error_msg = await self.validate_request(request, endpoint_name)
+                if not is_valid:
+                    raise HTTPException(status_code=429, detail=error_msg)
+                
+                # Call the original function with original arguments
+                return await func(*args, **kwargs)
+            return wrapper
+        return decorator
+
 # Global security middleware instance
 security_middleware = WalletSecurityMiddleware()
 

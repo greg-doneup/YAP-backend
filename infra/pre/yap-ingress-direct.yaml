@@ -1,0 +1,345 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yap-services-direct
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # TLS and Let's Encrypt
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Rate limiting (moved from Gateway to ALB)
+    nginx.ingress.kubernetes.io/rate-limit-rps: "100"
+    nginx.ingress.kubernetes.io/rate-limit-burst: "50"
+    # Security headers (moved from Gateway to ALB)
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+      more_set_headers "Content-Security-Policy: default-src 'self'";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+spec:
+  ingressClassName: nginx
+  # Add TLS configuration
+  tls:
+  - hosts:
+    - goyap.ai
+    - www.goyap.ai
+    secretName: yap-tls-secret
+  rules:
+    - host: goyap.ai
+      http:
+        paths:
+          # Landing page at root
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-landing
+                port:
+                  number: 80
+          
+          # ========================================
+          # DIRECT SERVICE ROUTING (NO GATEWAY)
+          # ========================================
+          
+          # Auth Service - handles authentication, wallet, waitlist
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          
+          # API Auth Service (for frontend compatibility)
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          
+          # API Waitlist (forwarded to auth service)
+          - path: /api/waitlist
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+                  
+          # Profile Service
+          - path: /profile
+            pathType: Prefix
+            backend:
+              service:
+                name: profile-service
+                port:
+                  number: 80
+                  
+          # Offchain Profile
+          - path: /offchain
+            pathType: Prefix
+            backend:
+              service:
+                name: offchain-profile
+                port:
+                  number: 80
+          
+          # Learning Service
+          - path: /learning
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-service
+                port:
+                  number: 80
+          
+          # Reward Service
+          - path: /reward
+            pathType: Prefix
+            backend:
+              service:
+                name: reward-service
+                port:
+                  number: 80
+          
+          # Voice Score Service (gRPC HTTP gateway)
+          - path: /voice-score
+            pathType: Prefix
+            backend:
+              service:
+                name: voice-score-service
+                port:
+                  number: 8080
+          
+          # TTS Service (gRPC HTTP gateway)
+          - path: /tts
+            pathType: Prefix
+            backend:
+              service:
+                name: tts-service
+                port:
+                  number: 8080
+          
+          # Grammar Service
+          - path: /grammar
+            pathType: Prefix
+            backend:
+              service:
+                name: grammar-service
+                port:
+                  number: 80
+          
+          # Alignment Service (gRPC HTTP gateway)
+          - path: /alignment
+            pathType: Prefix
+            backend:
+              service:
+                name: alignment-service
+                port:
+                  number: 8080
+          
+          # Pronunciation Scorer Service (gRPC HTTP gateway)  
+          - path: /pronunciation
+            pathType: Prefix
+            backend:
+              service:
+                name: pronunciation-scorer-service
+                port:
+                  number: 8080
+          
+          # Wallet Service
+          - path: /wallet
+            pathType: Prefix
+            backend:
+              service:
+                name: wallet-service
+                port:
+                  number: 8000
+          
+          # Observability Service - health checks and metrics
+          - path: /observability
+            pathType: Prefix
+            backend:
+              service:
+                name: observability-service
+                port:
+                  number: 80
+          
+          # Health checks (can be routed to observability service)
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: observability-service
+                port:
+                  number: 80
+          
+          # Metrics endpoint (for Prometheus)
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: observability-service
+                port:
+                  number: 80
+
+    # Duplicate rules for www.goyap.ai
+    - host: www.goyap.ai
+      http:
+        paths:
+          # Landing page at root
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-landing
+                port:
+                  number: 80
+          
+          # Auth Service
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          
+          # API Auth Service
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          
+          # API Waitlist
+          - path: /api/waitlist
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+                  
+          # Profile Service
+          - path: /profile
+            pathType: Prefix
+            backend:
+              service:
+                name: profile-service
+                port:
+                  number: 80
+                  
+          # Offchain Profile
+          - path: /offchain
+            pathType: Prefix
+            backend:
+              service:
+                name: offchain-profile
+                port:
+                  number: 80
+          
+          # Learning Service
+          - path: /learning
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-service
+                port:
+                  number: 80
+          
+          # Reward Service
+          - path: /reward
+            pathType: Prefix
+            backend:
+              service:
+                name: reward-service
+                port:
+                  number: 80
+          
+          # Voice Score Service
+          - path: /voice-score
+            pathType: Prefix
+            backend:
+              service:
+                name: voice-score-service
+                port:
+                  number: 8080
+          
+          # TTS Service
+          - path: /tts
+            pathType: Prefix
+            backend:
+              service:
+                name: tts-service
+                port:
+                  number: 8080
+          
+          # Grammar Service
+          - path: /grammar
+            pathType: Prefix
+            backend:
+              service:
+                name: grammar-service
+                port:
+                  number: 80
+          
+          # Alignment Service
+          - path: /alignment
+            pathType: Prefix
+            backend:
+              service:
+                name: alignment-service
+                port:
+                  number: 8080
+          
+          # Pronunciation Scorer Service
+          - path: /pronunciation
+            pathType: Prefix
+            backend:
+              service:
+                name: pronunciation-scorer-service
+                port:
+                  number: 8080
+          
+          # Wallet Service
+          - path: /wallet
+            pathType: Prefix
+            backend:
+              service:
+                name: wallet-service
+                port:
+                  number: 8000
+          
+          # Observability Service
+          - path: /observability
+            pathType: Prefix
+            backend:
+              service:
+                name: observability-service
+                port:
+                  number: 80
+          
+          # Health checks
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: observability-service
+                port:
+                  number: 80
+          
+          # Metrics endpoint
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: observability-service
+                port:
+                  number: 80

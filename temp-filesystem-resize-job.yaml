@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: filesystem-resize
+spec:
+  hostNetwork: true
+  hostPID: true
+  hostIPC: true
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: ip-10-0-1-36.ec2.internal
+  tolerations:
+  - key: nvidia.com/gpu
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+  containers:
+  - name: resize
+    image: ubuntu:20.04
+    command: 
+    - /bin/bash
+    - -c
+    - |
+      apt-get update && apt-get install -y e2fsprogs
+      echo "Current filesystem size:"
+      df -h /host-root/
+      echo "Running resize2fs..."
+      resize2fs /dev/nvme0n1p1
+      echo "New filesystem size:"
+      df -h /host-root/
+      echo "Filesystem resize complete!"
+      sleep 30
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: host-root
+      mountPath: /host-root
+      mountPropagation: Bidirectional
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /

@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const PROFILE_SERVICE_URL = "http://offchain-profile";
+const PROFILE_SERVICE_URL = process.env.PROFILE_SERVICE_URL || "http://offchain-profile";
+
+// Mock profiles for local development
+const mockProfiles: { [userId: string]: Profile } = {};
 
 // Define a type for history query parameters to improve maintainability
 type XpHistoryParams = {
@@ -47,4 +50,82 @@ export async function getXpHistoryByDate(wallet: string, date: string) {
 
 export async function getXpHistoryByDateAndType(wallet: string, date: string, type: string) {
   return getXpHistory(wallet, { date, type });
+}
+
+/**
+ * Profile data structure
+ */
+export interface Profile {
+  userId: string;
+  email: string;
+  name: string;
+  initial_language_to_learn: string;
+  interests?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Get user profile from profile service
+ */
+export async function getProfile(userId: string): Promise<Profile | null> {
+  try {
+    const { data } = await axios.get(`${PROFILE_SERVICE_URL}/profile/${userId}`);
+    return data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+    
+    // Fallback for local development when profile service is not available
+    if (axios.isAxiosError(error) && (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED')) {
+      console.warn(`Profile service not available, using local fallback for user ${userId}`);
+      return mockProfiles[userId] || {
+        id: userId,
+        email: `user-${userId}@test.com`,
+        name: `Test User ${userId}`,
+        language_to_learn: 'spanish',
+        cefr_level: 'A1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    }
+    
+    console.error("Error fetching user profile:", error);
+    throw error;
+  }
+}
+
+/**
+ * Update user profile
+ */
+export async function updateProfile(userId: string, updates: Partial<Profile>): Promise<void> {
+  try {
+    await axios.put(`${PROFILE_SERVICE_URL}/profile/${userId}`, updates);
+  } catch (error) {
+    // Fallback for local development when profile service is not available
+    if (axios.isAxiosError(error) && (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED')) {
+      console.warn(`Profile service not available, using local fallback for user ${userId}`);
+      // Update or create mock profile
+      const existingProfile = mockProfiles[userId] || {
+        id: userId,
+        email: `user-${userId}@test.com`,
+        name: `Test User ${userId}`,
+        language_to_learn: 'spanish',
+        cefr_level: 'A1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      mockProfiles[userId] = {
+        ...existingProfile,
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+      return;
+    }
+    
+    console.error("Error updating user profile:", error);
+    throw error;
+  }
 }

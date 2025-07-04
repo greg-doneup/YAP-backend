@@ -5,6 +5,9 @@ import quizRoutes from "./routes/quiz";
 import dailyRoutes from "./routes/daily";
 import progressRoutes from "./routes/progress";
 import lessonRoutes from "./routes/lessons";
+import dynamicLessonRoutes from "./routes/dynamic-lessons";
+import dailyAllowancesRoutes from "./routes/daily-allowances";
+import tokensRoutes from "./routes/tokens";
 import healthRoutes from "./routes/health";
 import { closeConnection } from "./clients/mongodb";
 import { learningSecurityMiddleware } from "./middleware/security";
@@ -25,16 +28,28 @@ app.use(learningSecurityMiddleware.auditLearningOperations());
 // Standard middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://perci.goyap.ai', 'http://localhost:3000'],
   credentials: true,
   optionsSuccessStatus: 200
 }));
 
-// Routes
-app.use("/quiz", learningSecurityMiddleware.enforceLearningOwnership(), quizRoutes);
-app.use("/daily", learningSecurityMiddleware.enforceLearningOwnership(), dailyRoutes);
-app.use("/progress", learningSecurityMiddleware.enforceLearningOwnership(), progressRoutes);
-app.use("/lessons", learningSecurityMiddleware.enforceLearningOwnership(), lessonRoutes);
+// Routes - mount all API routes under /api prefix
+const apiRouter = express.Router();
+
+// Mount all routes on the API router (these will be accessible under /api)
+apiRouter.use("/quiz", learningSecurityMiddleware.enforceLearningOwnership(), quizRoutes);
+apiRouter.use("/daily", learningSecurityMiddleware.enforceLearningOwnership(), dailyRoutes);
+apiRouter.use("/progress", learningSecurityMiddleware.enforceLearningOwnership(), progressRoutes);
+apiRouter.use("/lessons", learningSecurityMiddleware.enforceLearningOwnership(), lessonRoutes);
+apiRouter.use("/dynamic-lessons", learningSecurityMiddleware.enforceLearningOwnership(), dynamicLessonRoutes);
+apiRouter.use("/daily-allowances", learningSecurityMiddleware.enforceLearningOwnership(), dailyAllowancesRoutes);
+apiRouter.use("/allowances", learningSecurityMiddleware.enforceLearningOwnership(), dailyAllowancesRoutes);
+apiRouter.use("/tokens", learningSecurityMiddleware.enforceLearningOwnership(), tokensRoutes);
+
+// Mount API router under /api
+app.use("/api", apiRouter);
+
+// Health check route (not under /api prefix)
 app.use("/health", healthRoutes);
 
 // Security metrics endpoint

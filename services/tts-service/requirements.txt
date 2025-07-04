@@ -13,9 +13,9 @@ pymongo>=4.0.0
 
 # TTS is installed separately in Dockerfile with --no-deps
 
-grpcio>=1.50.0
-grpcio-tools>=1.50.0
-protobuf>=4.21.0
+grpcio>=1.56.0
+grpcio-tools>=1.56.0
+protobuf>=4.21.0,<5.0.0
 
 prometheus_client>=0.17.0  # For metrics collection
 python-dotenv>=1.0.0

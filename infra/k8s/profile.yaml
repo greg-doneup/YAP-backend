@@ -5,16 +5,6 @@ metadata:
   annotations:
     eks.amazonaws.com/role-arn: ${aws_iam_role.offchain_profile_role.arn}
 ---
-# A local ConfigMap to simulate development environment
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: local-dev-config
-  labels:
-    app: profile
-data:
-  USE_LOCAL_MONGO: "true"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,30 +24,20 @@ spec:
       serviceAccountName: profile-sa
       containers:
         - name: profile
-          image: profile-service
-          imagePullPolicy: IfNotPresent
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-profile-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
-          env:
-            # Include local development config
-            - name: USE_LOCAL_MONGO
-              valueFrom:
-                configMapKeyRef:
-                  name: local-dev-config
-                  key: USE_LOCAL_MONGO
-                  optional: true
           envFrom:
             - secretRef:
                 name: profile-secrets
-            - secretRef:
-                name: mongodb-secrets
             - secretRef:
                 name: mongodb-secrets
             - configMapRef:
                 name: profile-config
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10

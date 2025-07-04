@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
@@ -82,28 +82,34 @@ contract YAPToken is ERC20Permit, AccessControl, Pausable {
      * @dev Hook that is called before any transfer of tokens including mint and burn.
      * Enforces VestingBucket transfer locks when applicable.
      */
-    function _beforeTokenTransfer(
+    function _update(
         address from, 
         address to, 
-        uint256 amount
+        uint256 value
     ) internal override whenNotPaused {
-        super._beforeTokenTransfer(from, to, amount);
-        
         // Skip vesting check for minting and burning operations
-        if (from == address(0) || to == address(0)) return;
+        if (from == address(0) || to == address(0)) {
+            super._update(from, to, value);
+            return;
+        }
         
         // Skip if VestingBucket not set yet
-        if (vestingBucket == address(0)) return;
+        if (vestingBucket == address(0)) {
+            super._update(from, to, value);
+            return;
+        }
         
         // Check with VestingBucket if the transfer is allowed
         // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = vestingBucket.call(
-            abi.encodeWithSignature("beforeTransfer(address,address,uint256)", from, to, amount)
+            abi.encodeWithSignature("beforeTransfer(address,address,uint256)", from, to, value)
         );
         
         require(
             success && abi.decode(data, (bool)),
             "YAPToken: transfer lock active or destination not whitelisted"
         );
+        
+        super._update(from, to, value);
     }
 }

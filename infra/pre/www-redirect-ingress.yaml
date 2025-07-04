@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: www-redirect
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # TLS and Let's Encrypt
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Redirect www.goyap.ai to goyap.ai
+    nginx.ingress.kubernetes.io/permanent-redirect: "https://goyap.ai"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - www.goyap.ai
+      secretName: www-yap-tls-secret
+  rules:
+    - host: www.goyap.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-landing
+                port:
+                  number: 80

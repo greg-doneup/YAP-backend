@@ -1,22 +1,15 @@
 import express from 'express';
-import { connectToDatabase, getItem, putItem, updateItem } from '../mon/mongo';
-import { Profile, SecurityContext } from '../types';
+import mongoose from 'mongoose';
+import { Profile as ProfileType, SecurityContext } from '../types';
 import { getUserIdFromRequest } from '../shared/auth/authMiddleware';
-import { ProfileModel } from '../mon/mongo';
+import { Profile as ProfileModel } from '../models/Profile';
 import { SecurityValidator } from '../utils/securityValidator';
 import { AuditLogger, SecurityEventType } from '../utils/auditLogger';
-import { PrivateKeyService } from '../utils/privateKeyService';
 
 const router = express.Router();
 
 // Initialize security services
 const auditLogger = new AuditLogger();
-const privateKeyService = new PrivateKeyService();
-
-// Initialize MongoDB connection
-connectToDatabase().catch(err => {
-  console.error('Failed to connect to MongoDB:', err);
-});
 
 // Helper function to create security context
 const createSecurityContext = (req: any): SecurityContext => ({
@@ -29,6 +22,57 @@ const createSecurityContext = (req: any): SecurityContext => ({
   requestId: req.headers['x-request-id']
 });
 
+/** GET /profile/email/:email - Check if email exists */
+router.get('/email/:email', async (req, res, next) => {
+  try {
+    const email = req.params.email?.toLowerCase();
+    console.log(`🔍 Email lookup request for: ${email}`);
+    
+    if (!email) {
+      return res.status(400).json({
+        error: 'missing_email',
+        message: 'Email parameter is required'
+      });
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        error: 'invalid_email',
+        message: 'Invalid email format'
+      });
+    }
+    
+    try {
+      const profile = await ProfileModel.findOne({ email }).exec();
+      
+      if (profile) {
+        console.log(`✅ Email found: ${email} -> userId: ${profile.userId}`);
+        return res.json({
+          exists: true,
+          userId: profile.userId
+        });
+      } else {
+        console.log(`❌ Email not found: ${email}`);
+        return res.status(404).json({
+          exists: false,
+          message: 'Email not found'
+        });
+      }
+    } catch (error: any) {
+      console.error(`💥 Database error during email lookup for ${email}:`, error);
+      return res.status(500).json({
+        error: 'database_error',
+        message: 'Failed to check email existence'
+      });
+    }
+  } catch (err) {
+    console.error('💥 Unhandled error in email lookup:', err);
+    next(err);
+  }
+});
+
 /** GET /profile/:userId */
 router.get('/:userId', async (req, res, next) => {
   try {
@@ -38,6 +82,8 @@ router.get('/:userId', async (req, res, next) => {
     // Verify user ID ownership or admin access
     const userIdFromToken = getUserIdFromRequest(req);
     const requestedUserId = req.params.userId;
+    
+    console.log(`🔍 Profile retrieval request: ${requestedUserId} by ${userIdFromToken}`);
     
     // Validate request security
     const securityValidation = SecurityValidator.validateRequestSecurity(req);
@@ -67,26 +113,43 @@ router.get('/:userId', async (req, res, next) => {
       });
     }
     
-    const { Item } = await getItem(requestedUserId);
-    if (!Item) {
+    try {
+      const profile = await ProfileModel.findOne({ userId: requestedUserId }).exec();
+      
+      if (!profile) {
+        console.log(`❌ Profile not found: ${requestedUserId}`);
+        await auditLogger.logProfileAccess(req, requestedUserId, false);
+        return res.status(404).json({
+          error: 'not_found',
+          message: 'Profile not found'
+        });
+      }
+      
+      // Convert to plain object and remove sensitive data
+      const profileData = profile.toObject();
+      
+      // Remove sensitive data from response (legacy custodial wallet fields)
+      delete profileData.encryptedPrivateKey;
+      delete profileData.walletAddress;
+      delete profileData.keyCreatedAt;
+      delete profileData.keyLastAccessed;
+      
+      console.log(`✅ Profile retrieved successfully: ${requestedUserId}`);
+      
+      // Log successful access
+      await auditLogger.logProfileAccess(req, requestedUserId, true);
+      
+      res.json(profileData);
+    } catch (error: any) {
+      console.error(`💥 Database error retrieving profile ${requestedUserId}:`, error);
       await auditLogger.logProfileAccess(req, requestedUserId, false);
-      return res.status(404).json({
-        error: 'not_found',
-        message: 'Profile not found'
+      return res.status(500).json({
+        error: 'database_error',
+        message: 'Failed to retrieve profile'
       });
     }
-    
-    // Remove sensitive data from response
-    const sanitizedProfile = { ...Item };
-    if ('encryptedPrivateKey' in sanitizedProfile) {
-      delete (sanitizedProfile as any).encryptedPrivateKey;
-    }
-    
-    // Log successful access
-    await auditLogger.logProfileAccess(req, requestedUserId, true);
-    
-    res.json(sanitizedProfile);
   } catch (err) { 
+    console.error('💥 Unhandled error in profile retrieval:', err);
     await auditLogger.logProfileAccess(req, req.params.userId, false);
     next(err); 
   }
@@ -95,7 +158,7 @@ router.get('/:userId', async (req, res, next) => {
 /** POST /profile */
 router.post('/', async (req, res, next) => {
   try {
-    console.log('Processing profile creation request:');
+    console.log('🔄 Processing profile creation request:');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
     console.log('Body:', JSON.stringify(req.body, null, 2));
     
@@ -133,7 +196,7 @@ router.post('/', async (req, res, next) => {
     try {
       sanitizedEmail = SecurityValidator.sanitizeInput(req.body.email);
       sanitizedName = SecurityValidator.sanitizeInput(req.body.name);
-      sanitizedLanguage = SecurityValidator.sanitizeInput(req.body.language_to_learn);
+      sanitizedLanguage = SecurityValidator.sanitizeInput(req.body.initial_language_to_learn);
     } catch (error: any) {
       await auditLogger.logSecurityViolation(req, 'input_sanitization_failed', {
         userId,
@@ -167,50 +230,75 @@ router.post('/', async (req, res, next) => {
     }
     
     const now = new Date().toISOString();
-    const profile: Profile = {
+    const profileData: ProfileType = {
       userId,
       email: sanitizedEmail,
       name: sanitizedName,
       initial_language_to_learn: sanitizedLanguage,
       createdAt: now,
       updatedAt: now,
+      // Waitlist fields
+      ...(req.body.isWaitlistUser !== undefined && { isWaitlistUser: req.body.isWaitlistUser }),
+      ...(req.body.waitlist_signup_at !== undefined && { waitlist_signup_at: req.body.waitlist_signup_at }),
+      ...(req.body.wlw !== undefined && { wlw: req.body.wlw }),
+      ...(req.body.converted !== undefined && { converted: req.body.converted }),
+      // Wallet fields
+      ...(req.body.passphrase_hash !== undefined && { passphrase_hash: req.body.passphrase_hash }),
+      ...(req.body.encrypted_mnemonic !== undefined && { encrypted_mnemonic: req.body.encrypted_mnemonic }),
+      ...(req.body.salt !== undefined && { salt: req.body.salt }),
+      ...(req.body.nonce !== undefined && { nonce: req.body.nonce }),
+      // Secure stretched key fields (new architecture)
+      ...(req.body.encryptedStretchedKey !== undefined && { encryptedStretchedKey: req.body.encryptedStretchedKey }),
+      ...(req.body.encryptionSalt !== undefined && { encryptionSalt: req.body.encryptionSalt }),
+      ...(req.body.stretchedKeyNonce !== undefined && { stretchedKeyNonce: req.body.stretchedKeyNonce }),
+      // Additional wallet fields
+      ...(req.body.encrypted_wallet_data !== undefined && { encrypted_wallet_data: req.body.encrypted_wallet_data }),
+      ...(req.body.sei_wallet !== undefined && { sei_wallet: req.body.sei_wallet }),
+      ...(req.body.eth_wallet !== undefined && { eth_wallet: req.body.eth_wallet }),
+      ...(req.body.seiWalletAddress !== undefined && { seiWalletAddress: req.body.seiWalletAddress }),
+      ...(req.body.evmWalletAddress !== undefined && { evmWalletAddress: req.body.evmWalletAddress }),
+      ...(req.body.wallet_created_at !== undefined && { wallet_created_at: req.body.wallet_created_at }),
+      ...(req.body.secured_at !== undefined && { secured_at: req.body.secured_at }),
     };
     
-    // Try to get the profile first to definitively check if it exists
-    const { Item: existingProfile } = await getItem(userId);
-    console.log(`Profile existence check for ${userId}:`, !!existingProfile);
-    
-    if (existingProfile) {
-      console.log(`Profile already exists for ${userId}, returning 200 instead of 409`);
-      await auditLogger.logProfileCreation(req, userId, true);
-      // Return the existing profile with a 200 instead of error 409
-      // This helps with retries and edge cases
-      return res.status(200).json(existingProfile);
-    }
-    
-    // Create the profile
     try {
+      // Try to get the profile first to definitively check if it exists
+      const existingProfile = await ProfileModel.findOne({ userId }).exec();
+      console.log(`Profile existence check for ${userId}:`, !!existingProfile);
+      
+      if (existingProfile) {
+        console.log(`Profile already exists for ${userId}, returning 200 instead of 409`);
+        await auditLogger.logProfileCreation(req, userId, true);
+        // Return the existing profile with a 200 instead of error 409
+        // This helps with retries and edge cases
+        return res.status(200).json(existingProfile.toObject());
+      }
+      
+      // Create the profile
       console.log(`Creating new profile for ${userId}`);
-      await putItem(profile);
+      const newProfile = new ProfileModel(profileData);
+      const savedProfile = await newProfile.save();
       console.log(`Profile created successfully for ${userId}`);
       
       // Log successful creation
       await auditLogger.logProfileCreation(req, userId, true);
       
-      return res.status(201).json(profile);
+      return res.status(201).json(savedProfile.toObject());
     } catch (err: any) {
       console.error(`Error creating profile for ${userId}:`, err);
       
-      // One more check to see if the profile was actually created despite the error
-      const { Item: doubleCheckProfile } = await getItem(userId);
-      if (doubleCheckProfile) {
-        console.log(`Despite error, profile exists for ${userId}, returning 200`);
-        await auditLogger.logProfileCreation(req, userId, true);
-        return res.status(200).json(doubleCheckProfile);
-      }
-      
       // Handle duplicate key error from MongoDB
       if (err.code === 11000) {
+        console.log(`Duplicate key error for ${userId}, checking if profile exists`);
+        
+        // Double-check if the profile was actually created despite the error
+        const doubleCheckProfile = await ProfileModel.findOne({ userId }).exec();
+        if (doubleCheckProfile) {
+          console.log(`Despite error, profile exists for ${userId}, returning 200`);
+          await auditLogger.logProfileCreation(req, userId, true);
+          return res.status(200).json(doubleCheckProfile.toObject());
+        }
+        
         console.log(`Duplicate key error for ${userId}, returning 409`);
         await auditLogger.logProfileCreation(req, userId, false);
         return res.status(409).json({ 
@@ -224,7 +312,7 @@ router.post('/', async (req, res, next) => {
       throw err;
     }
   } catch (err) { 
-    console.error('Unhandled error in profile creation:', err);
+    console.error('💥 Unhandled error in profile creation:', err);
     await auditLogger.logProfileCreation(req, getUserIdFromRequest(req) || 'unknown', false);
     next(err); 
   }
@@ -239,6 +327,8 @@ router.patch('/:userId', async (req, res, next) => {
     // Verify ownership or admin access
     const userIdFromToken = getUserIdFromRequest(req);
     const requestedUserId = req.params.userId;
+    
+    console.log(`🔄 Profile update request: ${requestedUserId} by ${userIdFromToken}`);
     
     // Validate request security
     const securityValidation = SecurityValidator.validateRequestSecurity(req);
@@ -286,390 +376,104 @@ router.patch('/:userId', async (req, res, next) => {
     const updates: Record<string, any> = { updatedAt: now };
     const updatedFields: string[] = [];
     
-    // Allow updating email, name, and language preference with sanitization
-    if (req.body.email !== undefined) {
-      try {
-        updates.email = SecurityValidator.sanitizeInput(req.body.email);
-        updatedFields.push('email');
-      } catch (error: any) {
-        await auditLogger.logSecurityViolation(req, 'email_sanitization_failed', {
-          userId: userIdFromToken,
-          error: error?.message || 'Unknown error'
-        });
-        return res.status(400).json({
-          error: 'invalid_email',
-          message: 'Email contains invalid characters'
-        });
+    try {
+      // Allow updating email, name, and language preference with sanitization
+      if (req.body.email !== undefined) {
+        try {
+          updates.email = SecurityValidator.sanitizeInput(req.body.email);
+          updatedFields.push('email');
+        } catch (error: any) {
+          await auditLogger.logSecurityViolation(req, 'email_sanitization_failed', {
+            userId: userIdFromToken,
+            error: error?.message || 'Unknown error'
+          });
+          return res.status(400).json({
+            error: 'invalid_email',
+            message: 'Email contains invalid characters'
+          });
+        }
       }
-    }
-    
-    if (req.body.name !== undefined) {
-      try {
-        updates.name = SecurityValidator.sanitizeInput(req.body.name);
-        updatedFields.push('name');
-      } catch (error: any) {
-        await auditLogger.logSecurityViolation(req, 'name_sanitization_failed', {
-          userId: userIdFromToken,
-          error: error?.message || 'Unknown error'
-        });
-        return res.status(400).json({
-          error: 'invalid_name',
-          message: 'Name contains invalid characters'
-        });
+      
+      if (req.body.name !== undefined) {
+        try {
+          updates.name = SecurityValidator.sanitizeInput(req.body.name);
+          updatedFields.push('name');
+        } catch (error: any) {
+          await auditLogger.logSecurityViolation(req, 'name_sanitization_failed', {
+            userId: userIdFromToken,
+            error: error?.message || 'Unknown error'
+          });
+          return res.status(400).json({
+            error: 'invalid_name',
+            message: 'Name contains invalid characters'
+          });
+        }
       }
-    }
-    
-    if (req.body.initial_language_to_learn !== undefined) {
-      try {
-        updates.initial_language_to_learn = SecurityValidator.sanitizeInput(req.body.initial_language_to_learn);
-        updatedFields.push('initial_language_to_learn');
-      } catch (error: any) {
-        await auditLogger.logSecurityViolation(req, 'language_sanitization_failed', {
-          userId: userIdFromToken,
-          error: error?.message || 'Unknown error'
-        });
-        return res.status(400).json({
-          error: 'invalid_language',
-          message: 'Language contains invalid characters'
-        });
+      
+      if (req.body.initial_language_to_learn !== undefined) {
+        try {
+          const newLanguage = SecurityValidator.sanitizeInput(req.body.initial_language_to_learn);
+          
+          // Check if language is actually changing
+          const currentProfile = await ProfileModel.findOne({ userId: requestedUserId }).exec();
+          const previousLanguage = currentProfile?.initial_language_to_learn;
+          
+          if (previousLanguage && previousLanguage !== newLanguage) {
+            // Language is changing - notify learning service to reset progress
+            console.log(`Language change detected for user ${requestedUserId}: ${previousLanguage} -> ${newLanguage}`);
+            
+            // Log the language change for audit purposes
+            await auditLogger.logProfileUpdate(req, requestedUserId, ['language_change'], true);
+          }
+          
+          updates.initial_language_to_learn = newLanguage;
+          updatedFields.push('initial_language_to_learn');
+        } catch (error: any) {
+          await auditLogger.logSecurityViolation(req, 'language_sanitization_failed', {
+            userId: userIdFromToken,
+            error: error?.message || 'Unknown error'
+          });
+          return res.status(400).json({
+            error: 'invalid_language',
+            message: 'Language contains invalid characters'
+          });
+        }
       }
-    }
 
-    // Format for MongoDB update
-    const result = await updateItem({
-      Key: { userId: requestedUserId },
-      UpdateExpression: `SET ${Object.keys(updates).map((k, i) => `#k${i} = :v${i}`).join(', ')}`,
-      ExpressionAttributeNames: Object.keys(updates).reduce((acc, k, i) => ({ ...acc, [`#k${i}`]: k }), {}),
-      ExpressionAttributeValues: Object.values(updates).reduce((acc, v, i) => ({ ...acc, [`:v${i}`]: v }), {})
-    });
-    
-    if (!result.Attributes) {
+      // Update the profile
+      const result = await ProfileModel.findOneAndUpdate(
+        { userId: requestedUserId },
+        { $set: updates },
+        { new: true, runValidators: true }
+      ).exec();
+      
+      if (!result) {
+        console.log(`❌ Profile not found for update: ${requestedUserId}`);
+        await auditLogger.logProfileUpdate(req, requestedUserId, updatedFields, false);
+        return res.status(404).json({
+          error: 'not_found',
+          message: 'Profile not found'
+        });
+      }
+      
+      console.log(`✅ Profile updated successfully: ${requestedUserId}, fields: ${updatedFields.join(', ')}`);
+      
+      // Log successful update
+      await auditLogger.logProfileUpdate(req, requestedUserId, updatedFields, true);
+      
+      res.sendStatus(204);
+    } catch (error: any) {
+      console.error(`💥 Database error updating profile ${requestedUserId}:`, error);
       await auditLogger.logProfileUpdate(req, requestedUserId, updatedFields, false);
-      return res.status(404).json({
-        error: 'not_found',
-        message: 'Profile not found'
+      return res.status(500).json({
+        error: 'database_error',
+        message: 'Failed to update profile'
       });
     }
-    
-    // Log successful update
-    await auditLogger.logProfileUpdate(req, requestedUserId, updatedFields, true);
-    
-    res.sendStatus(204);
   } catch (err) { 
+    console.error('💥 Unhandled error in profile update:', err);
     await auditLogger.logProfileUpdate(req, req.params.userId, [], false);
     next(err); 
-  }
-});
-
-/** GET /profile/email/:email */
-router.get('/email/:email', async (req, res, next) => {
-  try {
-    const email = req.params.email;
-    
-    // Validate and sanitize email
-    if (!SecurityValidator.validateEmail(email)) {
-      await auditLogger.logSecurityViolation(req, 'invalid_email_lookup', {
-        email: SecurityValidator.hashSensitiveData(email)
-      });
-      return res.status(400).json({ 
-        error: 'invalid_email', 
-        message: 'Invalid email format' 
-      });
-    }
-    
-    const sanitizedEmail = SecurityValidator.sanitizeInput(email);
-    const found = await ProfileModel.findOne({ email: sanitizedEmail }).lean();
-    
-    if (!found) {
-      return res.status(404).json({ error: 'not_found', message: 'Profile not found' });
-    }
-    
-    // Remove sensitive data
-    const sanitizedProfile = { ...found };
-    if ('encryptedPrivateKey' in sanitizedProfile) {
-      delete (sanitizedProfile as any).encryptedPrivateKey;
-    }
-    
-    return res.json(sanitizedProfile);
-  } catch (err) {
-    next(err);
-  }
-});
-
-/** POST /profile/:userId/wallet - Store encrypted private key */
-router.post('/:userId/wallet', async (req, res, next) => {
-  try {
-    const context = createSecurityContext(req);
-    const userIdFromToken = getUserIdFromRequest(req);
-    const requestedUserId = req.params.userId;
-    
-    // Verify ownership
-    if (userIdFromToken !== requestedUserId) {
-      await auditLogger.logSecurityViolation(req, 'unauthorized_wallet_storage', {
-        requestedUserId,
-        actualUserId: userIdFromToken
-      });
-      return res.status(403).json({ 
-        error: 'forbidden',
-        message: 'You can only store wallet keys for your own profile' 
-      });
-    }
-    
-    const { privateKey } = req.body;
-    
-    if (!privateKey) {
-      await auditLogger.logSecurityViolation(req, 'missing_private_key', {
-        userId: userIdFromToken
-      });
-      return res.status(400).json({
-        error: 'missing_private_key',
-        message: 'Private key is required'
-      });
-    }
-    
-    // Store the encrypted private key
-    const { encryptedKey, walletAddress } = await privateKeyService.storePrivateKey(
-      privateKey, 
-      requestedUserId, 
-      context
-    );
-    
-    // Update profile with wallet data
-    const now = new Date().toISOString();
-    const updates = {
-      encryptedPrivateKey: encryptedKey,
-      walletAddress,
-      keyCreatedAt: now,
-      keyLastAccessed: now,
-      updatedAt: now
-    };
-    
-    await updateItem({
-      Key: { userId: requestedUserId },
-      UpdateExpression: 'SET encryptedPrivateKey = :encKey, walletAddress = :addr, keyCreatedAt = :created, keyLastAccessed = :accessed, updatedAt = :updated',
-      ExpressionAttributeValues: {
-        ':encKey': encryptedKey,
-        ':addr': walletAddress,
-        ':created': now,
-        ':accessed': now,
-        ':updated': now
-      }
-    });
-    
-    res.status(201).json({
-      success: true,
-      walletAddress,
-      message: 'Wallet stored successfully'
-    });
-    
-  } catch (err) {
-    next(err);
-  }
-});
-
-/** POST /profile/:userId/wallet/generate - Generate and store new wallet */
-router.post('/:userId/wallet/generate', async (req, res, next) => {
-  try {
-    const context = createSecurityContext(req);
-    const userIdFromToken = getUserIdFromRequest(req);
-    const requestedUserId = req.params.userId;
-    
-    // Verify ownership
-    if (userIdFromToken !== requestedUserId) {
-      await auditLogger.logSecurityViolation(req, 'unauthorized_wallet_generation', {
-        requestedUserId,
-        actualUserId: userIdFromToken
-      });
-      return res.status(403).json({ 
-        error: 'forbidden',
-        message: 'You can only generate wallet keys for your own profile' 
-      });
-    }
-    
-    // Check if user already has a wallet
-    const { Item: existingProfile } = await getItem(requestedUserId);
-    if (existingProfile?.encryptedPrivateKey) {
-      await auditLogger.logSecurityViolation(req, 'wallet_already_exists', {
-        userId: userIdFromToken
-      });
-      return res.status(409).json({
-        error: 'wallet_exists',
-        message: 'Wallet already exists for this profile'
-      });
-    }
-    
-    // Generate new wallet
-    const walletData = await privateKeyService.generateNewWallet(requestedUserId, context);
-    
-    // Update profile with wallet data
-    const now = new Date().toISOString();
-    await updateItem({
-      Key: { userId: requestedUserId },
-      UpdateExpression: 'SET encryptedPrivateKey = :encKey, walletAddress = :addr, keyCreatedAt = :created, keyLastAccessed = :accessed, updatedAt = :updated',
-      ExpressionAttributeValues: {
-        ':encKey': walletData.encryptedKey,
-        ':addr': walletData.address,
-        ':created': now,
-        ':accessed': now,
-        ':updated': now
-      }
-    });
-    
-    res.status(201).json({
-      success: true,
-      walletAddress: walletData.address,
-      privateKey: walletData.privateKey, // Only returned once during generation
-      message: 'Wallet generated successfully'
-    });
-    
-  } catch (err) {
-    next(err);
-  }
-});
-
-/** GET /profile/:userId/wallet/address - Get wallet address */
-router.get('/:userId/wallet/address', async (req, res, next) => {
-  try {
-    const userIdFromToken = getUserIdFromRequest(req);
-    const requestedUserId = req.params.userId;
-    
-    // Verify ownership or admin access
-    const isOwnProfile = userIdFromToken === requestedUserId;
-    const isAdmin = (req as any).user?.roles?.includes('admin');
-    
-    if (!isOwnProfile && !isAdmin) {
-      await auditLogger.logSecurityViolation(req, 'unauthorized_wallet_address_access', {
-        requestedUserId,
-        actualUserId: userIdFromToken
-      });
-      return res.status(403).json({ 
-        error: 'forbidden',
-        message: 'You can only access your own wallet address' 
-      });
-    }
-    
-    const { Item } = await getItem(requestedUserId);
-    if (!Item || !Item.walletAddress) {
-      return res.status(404).json({
-        error: 'wallet_not_found',
-        message: 'No wallet found for this profile'
-      });
-    }
-    
-    res.json({
-      walletAddress: Item.walletAddress,
-      keyCreatedAt: Item.keyCreatedAt
-    });
-    
-  } catch (err) {
-    next(err);
-  }
-});
-
-/** POST /profile/:userId/wallet/decrypt - Decrypt and return private key (high security) */
-router.post('/:userId/wallet/decrypt', async (req, res, next) => {
-  try {
-    const context = createSecurityContext(req);
-    const userIdFromToken = getUserIdFromRequest(req);
-    const requestedUserId = req.params.userId;
-    
-    // Verify ownership (admin access not allowed for private key decryption)
-    if (userIdFromToken !== requestedUserId) {
-      await auditLogger.logSecurityViolation(req, 'unauthorized_private_key_access', {
-        requestedUserId,
-        actualUserId: userIdFromToken
-      });
-      return res.status(403).json({ 
-        error: 'forbidden',
-        message: 'You can only decrypt your own private key' 
-      });
-    }
-    
-    const { Item } = await getItem(requestedUserId);
-    if (!Item || !Item.encryptedPrivateKey || !Item.walletAddress) {
-      return res.status(404).json({
-        error: 'wallet_not_found',
-        message: 'No encrypted wallet found for this profile'
-      });
-    }
-    
-    // Decrypt the private key
-    const privateKey = await privateKeyService.retrievePrivateKey(
-      Item.encryptedPrivateKey,
-      requestedUserId,
-      Item.walletAddress,
-      context
-    );
-    
-    // Update last accessed timestamp
-    const now = new Date().toISOString();
-    await updateItem({
-      Key: { userId: requestedUserId },
-      UpdateExpression: 'SET keyLastAccessed = :accessed, updatedAt = :updated',
-      ExpressionAttributeValues: {
-        ':accessed': now,
-        ':updated': now
-      }
-    });
-    
-    res.json({
-      privateKey,
-      walletAddress: Item.walletAddress,
-      keyCreatedAt: Item.keyCreatedAt,
-      warning: 'This private key should be handled securely and never logged or stored'
-    });
-    
-  } catch (err) {
-    next(err);
-  }
-});
-
-/** DELETE /profile/:userId/wallet - Delete stored wallet */
-router.delete('/:userId/wallet', async (req, res, next) => {
-  try {
-    const context = createSecurityContext(req);
-    const userIdFromToken = getUserIdFromRequest(req);
-    const requestedUserId = req.params.userId;
-    
-    // Verify ownership
-    if (userIdFromToken !== requestedUserId) {
-      await auditLogger.logSecurityViolation(req, 'unauthorized_wallet_deletion', {
-        requestedUserId,
-        actualUserId: userIdFromToken
-      });
-      return res.status(403).json({ 
-        error: 'forbidden',
-        message: 'You can only delete your own wallet' 
-      });
-    }
-    
-    const { Item } = await getItem(requestedUserId);
-    if (!Item || !Item.walletAddress) {
-      return res.status(404).json({
-        error: 'wallet_not_found',
-        message: 'No wallet found for this profile'
-      });
-    }
-    
-    // Log the deletion
-    await privateKeyService.deletePrivateKey(requestedUserId, Item.walletAddress, context);
-    
-    // Remove wallet data from profile
-    await updateItem({
-      Key: { userId: requestedUserId },
-      UpdateExpression: 'REMOVE encryptedPrivateKey, walletAddress, keyCreatedAt, keyLastAccessed SET updatedAt = :updated',
-      ExpressionAttributeValues: {
-        ':updated': new Date().toISOString()
-      }
-    });
-    
-    res.json({
-      success: true,
-      message: 'Wallet deleted successfully'
-    });
-    
-  } catch (err) {
-    next(err);
   }
 });
 
@@ -781,27 +585,63 @@ router.put('/:userId/wallet-conversion', async (req, res, next) => {
       email,
       name,
       initial_language_to_learn,
+      isWaitlistUser,
       wlw, 
+      passphrase_hash, // CRITICAL: Extract passphrase hash for wallet security
       encryptedStretchedKey,
       encryptionSalt,
       stretchedKeyNonce,
       encrypted_mnemonic, 
       mnemonic_salt, 
       mnemonic_nonce, 
+      salt, // Also extract top-level salt for compatibility
+      nonce, // Also extract top-level nonce for compatibility
       sei_wallet, 
       eth_wallet,
       encrypted_wallet_data,
+      seiWalletAddress, // Top-level wallet addresses for compatibility
+      evmWalletAddress,
       secured_at, 
+      wallet_created_at, // Wallet creation timestamp
       converted,
       updatedAt
     } = req.body;
     
     // Validate required secure fields
-    if (!encryptedStretchedKey || !encryptionSalt || !stretchedKeyNonce) {
-      return res.status(400).json({
-        error: 'missing_encrypted_passphrase_data',
-        message: 'Encrypted stretched passphrase data is required'
-      });
+    // Enhanced debugging for stretched key data issue
+    console.log('🔍 DEBUG: Wallet conversion received data:', {
+      hasEncryptedStretchedKey: !!encryptedStretchedKey,
+      encryptedStretchedKeyType: typeof encryptedStretchedKey,
+      encryptedStretchedKeyIsArray: Array.isArray(encryptedStretchedKey),
+      encryptedStretchedKeyLength: Array.isArray(encryptedStretchedKey) ? encryptedStretchedKey.length : 'not-array',
+      encryptedStretchedKeyPreview: Array.isArray(encryptedStretchedKey) ? encryptedStretchedKey.slice(0, 5) : encryptedStretchedKey,
+      hasEncryptionSalt: !!encryptionSalt,
+      encryptionSaltType: typeof encryptionSalt,
+      encryptionSaltLength: Array.isArray(encryptionSalt) ? encryptionSalt.length : 'not-array',
+      hasStretchedKeyNonce: !!stretchedKeyNonce,
+      stretchedKeyNonceType: typeof stretchedKeyNonce,
+      stretchedKeyNonceLength: Array.isArray(stretchedKeyNonce) ? stretchedKeyNonce.length : 'not-array'
+    });
+    
+    // Check if this is old format (empty arrays) or new format
+    const isOldFormat = Array.isArray(encryptedStretchedKey) && encryptedStretchedKey.length === 0;
+    
+    console.log('🔍 DEBUG: Format detection:', {
+      isOldFormat,
+      willIncludeStretchedKeyData: !isOldFormat
+    });
+    
+    // Validate required secure fields
+    // For secure stretched key architecture, passphrase_hash is optional (placeholder)
+    // The real security comes from client-side encrypted stretched key data
+    if (!isOldFormat) {
+      // New secure format validation
+      if (!encryptedStretchedKey || !encryptionSalt || !stretchedKeyNonce) {
+        return res.status(400).json({
+          error: 'missing_encrypted_passphrase_data',
+          message: 'Encrypted stretched passphrase data is required'
+        });
+      }
     }
     
     if (!encrypted_mnemonic || !mnemonic_salt || !mnemonic_nonce) {
@@ -820,40 +660,55 @@ router.put('/:userId/wallet-conversion', async (req, res, next) => {
     
     // Prepare update with secure wallet data
     const now = new Date().toISOString();
+    
     const updates = {
       // Basic profile updates
       ...(email && { email }),
       ...(name && { name }),
       ...(initial_language_to_learn && { initial_language_to_learn }),
       
+      // Waitlist status (preserve if it's a waitlist user)
+      ...(isWaitlistUser !== undefined && { isWaitlistUser }),
+      
       // Wallet status
       wlw: wlw !== undefined ? wlw : true,
       
-      // Encrypted stretched passphrase (server cannot decrypt)
-      encryptedStretchedKey,
-      encryptionSalt,
-      stretchedKeyNonce,
+      // Encrypted stretched passphrase (only for new format)
+      ...(isOldFormat ? {} : {
+        encryptedStretchedKey,
+        encryptionSalt,
+        stretchedKeyNonce,
+      }),
       
-      // Encrypted mnemonic (encrypted with stretched key)
+      // Encrypted mnemonic (encrypted with stretched key or old format)
       encrypted_mnemonic,
       mnemonic_salt,
       mnemonic_nonce,
+      
+      // Top-level salt and nonce for compatibility
+      salt: salt || mnemonic_salt,
+      nonce: nonce || mnemonic_nonce,
       
       // Public wallet addresses
       sei_wallet,
       eth_wallet,
       
+      // Top-level wallet addresses for compatibility
+      seiWalletAddress: seiWalletAddress || sei_wallet?.address,
+      evmWalletAddress: evmWalletAddress || eth_wallet?.address,
+      
       // Enhanced wallet data for compatibility
       encrypted_wallet_data: encrypted_wallet_data || {
         encrypted_mnemonic,
-        salt: mnemonic_salt,
-        nonce: mnemonic_nonce,
+        salt: salt || mnemonic_salt,
+        nonce: nonce || mnemonic_nonce,
         sei_address: sei_wallet.address,
         eth_address: eth_wallet.address
       },
       
-      // Metadata
+      // Metadata with proper timestamps
       secured_at: secured_at || now,
+      wallet_created_at: wallet_created_at || now,
       converted: converted !== undefined ? converted : true,
       updatedAt: updatedAt || now
     };
@@ -872,7 +727,7 @@ router.put('/:userId/wallet-conversion', async (req, res, next) => {
         });
       }
       
-      console.log(`✅ Successfully converted profile ${requestedUserId} to secure wallet`);
+      console.log(`✅ Successfully converted profile ${requestedUserId} to ${isOldFormat ? 'legacy' : 'secure'} wallet`);
       
       // Log successful wallet conversion
       await auditLogger.logSecurityEvent(
@@ -882,7 +737,8 @@ router.put('/:userId/wallet-conversion', async (req, res, next) => {
         req,
         true,
         {
-          hasEncryptedStretchedKey: !!encryptedStretchedKey,
+          conversionFormat: isOldFormat ? 'legacy' : 'secure',
+          hasEncryptedStretchedKey: !isOldFormat && !!encryptedStretchedKey,
           walletAddresses: {
             sei: sei_wallet.address,
             eth: eth_wallet.address
@@ -935,6 +791,8 @@ router.get('/:userId/gdpr/export', async (req, res, next) => {
     const userIdFromToken = getUserIdFromRequest(req);
     const requestedUserId = req.params.userId;
     
+    console.log(`🔍 GDPR export request: ${requestedUserId} by ${userIdFromToken}`);
+    
     // Verify ownership (admin access allowed for GDPR)
     const isOwnProfile = userIdFromToken === requestedUserId;
     const isAdmin = (req as any).user?.roles?.includes('admin');
@@ -950,43 +808,65 @@ router.get('/:userId/gdpr/export', async (req, res, next) => {
       });
     }
     
-    const { Item } = await getItem(requestedUserId);
-    if (!Item) {
-      return res.status(404).json({
-        error: 'profile_not_found',
-        message: 'Profile not found'
+    try {
+      const profile = await ProfileModel.findOne({ userId: requestedUserId }).exec();
+      
+      if (!profile) {
+        console.log(`❌ Profile not found for GDPR export: ${requestedUserId}`);
+        return res.status(404).json({
+          error: 'profile_not_found',
+          message: 'Profile not found'
+        });
+      }
+      
+      const profileData = profile.toObject();
+      
+      // Create comprehensive export (excluding actual private key)
+      const exportData = {
+        profile: {
+          userId: profileData.userId,
+          email: profileData.email,
+          name: profileData.name,
+          initial_language_to_learn: profileData.initial_language_to_learn,
+          createdAt: profileData.createdAt,
+          updatedAt: profileData.updatedAt
+        },
+        wallet: profileData.encrypted_mnemonic ? {
+          hasNonCustodialWallet: true,
+          walletCreatedAt: profileData.wallet_created_at,
+          securedAt: profileData.secured_at,
+          seiWalletAddress: profileData.seiWalletAddress,
+          evmWalletAddress: profileData.evmWalletAddress
+        } : (profileData.walletAddress ? {
+          hasLegacyCustodialWallet: true,
+          walletAddress: profileData.walletAddress,
+          keyCreatedAt: profileData.keyCreatedAt,
+          keyLastAccessed: profileData.keyLastAccessed,
+          hasEncryptedPrivateKey: !!profileData.encryptedPrivateKey
+        } : null),
+        export: {
+          exportedAt: new Date().toISOString(),
+          exportedBy: userIdFromToken,
+          dataTypes: ['profile', 'wallet_metadata']
+        }
+      };
+      
+      console.log(`✅ GDPR export completed for: ${requestedUserId}`);
+      
+      // Log GDPR export
+      await auditLogger.logGdprEvent(req, requestedUserId, 'export', true);
+      
+      res.json(exportData);
+    } catch (error: any) {
+      console.error(`💥 Database error during GDPR export for ${requestedUserId}:`, error);
+      await auditLogger.logGdprEvent(req, requestedUserId, 'export', false);
+      return res.status(500).json({
+        error: 'database_error',
+        message: 'Failed to export user data'
       });
     }
-    
-    // Create comprehensive export (excluding actual private key)
-    const exportData = {
-      profile: {
-        userId: Item.userId,
-        email: Item.email,
-        name: Item.name,
-        initial_language_to_learn: Item.initial_language_to_learn,
-        createdAt: Item.createdAt,
-        updatedAt: Item.updatedAt
-      },
-      wallet: Item.walletAddress ? {
-        walletAddress: Item.walletAddress,
-        keyCreatedAt: Item.keyCreatedAt,
-        keyLastAccessed: Item.keyLastAccessed,
-        hasEncryptedPrivateKey: !!Item.encryptedPrivateKey
-      } : null,
-      export: {
-        exportedAt: new Date().toISOString(),
-        exportedBy: userIdFromToken,
-        dataTypes: ['profile', 'wallet_metadata']
-      }
-    };
-    
-    // Log GDPR export
-    await auditLogger.logGdprEvent(req, requestedUserId, 'export', true);
-    
-    res.json(exportData);
-    
   } catch (err) {
+    console.error('💥 Unhandled error in GDPR export:', err);
     await auditLogger.logGdprEvent(req, req.params.userId, 'export', false);
     next(err);
   }
@@ -998,6 +878,8 @@ router.delete('/:userId/gdpr', async (req, res, next) => {
     const context = createSecurityContext(req);
     const userIdFromToken = getUserIdFromRequest(req);
     const requestedUserId = req.params.userId;
+    
+    console.log(`🗑️ GDPR deletion request: ${requestedUserId} by ${userIdFromToken}`);
     
     // Verify ownership (admin access allowed for GDPR)
     const isOwnProfile = userIdFromToken === requestedUserId;
@@ -1014,33 +896,51 @@ router.delete('/:userId/gdpr', async (req, res, next) => {
       });
     }
     
-    const { Item } = await getItem(requestedUserId);
-    if (!Item) {
+    try {
+      const profile = await ProfileModel.findOne({ userId: requestedUserId }).exec();
+      
+      if (!profile) {
+        console.log(`❌ Profile not found for GDPR deletion: ${requestedUserId}`);
+        await auditLogger.logGdprEvent(req, requestedUserId, 'delete', false);
+        return res.status(404).json({
+          error: 'profile_not_found',
+          message: 'Profile not found'
+        });
+      }
+      
+      const profileData = profile.toObject();
+      
+      // Log wallet deletion if exists (legacy custodial wallets no longer supported)
+      if (profileData.walletAddress) {
+        await auditLogger.logSecurityViolation(req, 'legacy_wallet_data_found', {
+          userId: requestedUserId,
+          walletAddress: profileData.walletAddress
+        });
+      }
+      
+      // Delete the entire profile
+      await ProfileModel.deleteOne({ userId: requestedUserId }).exec();
+      
+      console.log(`✅ GDPR deletion completed for: ${requestedUserId}`);
+      
+      // Log GDPR deletion
+      await auditLogger.logGdprEvent(req, requestedUserId, 'delete', true);
+      
+      res.json({
+        success: true,
+        message: 'All user data deleted successfully',
+        deletedAt: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error(`💥 Database error during GDPR deletion for ${requestedUserId}:`, error);
       await auditLogger.logGdprEvent(req, requestedUserId, 'delete', false);
-      return res.status(404).json({
-        error: 'profile_not_found',
-        message: 'Profile not found'
+      return res.status(500).json({
+        error: 'database_error',
+        message: 'Failed to delete user data'
       });
     }
-    
-    // Log wallet deletion if exists
-    if (Item.walletAddress) {
-      await privateKeyService.deletePrivateKey(requestedUserId, Item.walletAddress, context);
-    }
-    
-    // Delete the entire profile
-    await ProfileModel.deleteOne({ userId: requestedUserId });
-    
-    // Log GDPR deletion
-    await auditLogger.logGdprEvent(req, requestedUserId, 'delete', true);
-    
-    res.json({
-      success: true,
-      message: 'All user data deleted successfully',
-      deletedAt: new Date().toISOString()
-    });
-    
   } catch (err) {
+    console.error('💥 Unhandled error in GDPR deletion:', err);
     await auditLogger.logGdprEvent(req, req.params.userId, 'delete', false);
     next(err);
   }

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: tts-service
-        image: tts-service
+        image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-tts-service:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50053
@@ -78,7 +78,7 @@ spec:
     spec:
       containers:
       - name: alignment-service
-        image: alignment-service
+        image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-alignment-service:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50051
@@ -141,7 +141,7 @@ spec:
     spec:
       containers:
       - name: pronunciation-scorer
-        image: pronunciation-scorer
+        image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-pronunciation-scorer:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50052
@@ -204,7 +204,7 @@ spec:
     spec:
       containers:
       - name: voice-score
-        image: voice-score
+        image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-voice-score-service:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50051

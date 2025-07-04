@@ -1,22 +1,32 @@
 import { Router } from "express";
 import { internal } from "../clients/internal";
-import { ensureJwt } from "../middleware/authProxy";
 
 const router = Router();
-router.get("/", ensureJwt, async (req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
-    const wallet = (req as any).user.walletAddress;
+    // Dashboard endpoint requires no authentication (public demo)
+    const demoWallet = "0x0000000000000000000000000000000000000000"; // Demo wallet address
     const [prof, bal] = await Promise.all([
-      internal.get(`http://offchain-profile/profile/${wallet}`),
-      internal.get(`http://reward-service/yap/balance/${wallet}`)
+      internal.get(`http://offchain-profile/profile/${demoWallet}`),
+      internal.get(`http://reward-service/yap/balance/${demoWallet}`)
     ]);
 
     res.json({
-      wallet,
-      xp: prof.data.xp,
-      streak: prof.data.streak,
-      yapBalance: bal.data.balance
+      wallet: demoWallet,
+      xp: prof.data.xp || 0,
+      streak: prof.data.streak || 0,
+      yapBalance: bal.data.balance || 0,
+      note: "Demo dashboard - no authentication required"
     });
-  } catch (err) { next(err); }
+  } catch (err) { 
+    // Return demo data if services are not available
+    res.json({
+      wallet: "0x0000000000000000000000000000000000000000",
+      xp: 0,
+      streak: 0,
+      yapBalance: 0,
+      note: "Demo dashboard - services offline"
+    });
+  }
 });
 export default router;

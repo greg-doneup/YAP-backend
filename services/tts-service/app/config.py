@@ -243,6 +243,10 @@ class Config:
     KAFKA_TOPIC_QUALITY = os.environ.get('KAFKA_TOPIC_QUALITY', 'audio_quality')
     KAFKA_TOPIC_DEVICE_METADATA = os.environ.get('KAFKA_TOPIC_DEVICE_METADATA', 'device_metadata')
     
+    # HTTP Feedback API settings
+    USE_HTTP_FEEDBACK_API = os.environ.get('USE_HTTP_FEEDBACK_API', 'false').lower() in ('true', '1', 't')
+    FEEDBACK_API_PORT = int(os.environ.get('FEEDBACK_API_PORT', '5001'))
+    
     # Audio quality scoring model (optional)
     AUDIO_QUALITY_MODEL_PATH = os.environ.get('AUDIO_QUALITY_MODEL_PATH', '')
     

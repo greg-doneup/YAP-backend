@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: voice-score }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: voice-score } }
+  template:
+    metadata: { labels: { app: voice-score } }
+    spec:
+      containers:
+        - name: voice-score
+          image: voice-score  # For local development with Skaffold
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 50051, name: grpc }]
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits:   { cpu: "1",   memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: voice-score }
+spec:
+  selector: { app: voice-score }
+  ports:
+    - port: 50051
+      targetPort: 50051
+      name: grpc

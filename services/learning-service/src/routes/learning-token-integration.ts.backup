@@ -1,0 +1,285 @@
+/**
+ * Example: Learning Service Routes with Token Integration
+ * 
+ * This demonstrates how to integrate token middleware into Learning Service routes
+ * to handle daily allowances, token costs, and lesson rewards.
+ */
+
+import { Router } from 'express';
+import { 
+  learningTokenMiddleware,
+  validateLessonAccess,
+  validateLearningFeature,
+  processLessonCompletion,
+  processLearningSpending
+} from '../middleware/learning-token';
+
+const router = Router();
+
+// ========================================
+// ENHANCED LEARNING ROUTES WITH TOKEN INTEGRATION
+// ========================================
+
+/**
+ * GET /learning/daily - Get daily vocabulary with allowance validation
+ */
+router.get('/daily', 
+  validateLessonAccess(),
+  async (req, res) => {
+    try {
+      const validation = (req as any).lessonValidation;
+      
+      // Get vocabulary data (existing logic)
+      const dailyVocab = await getDailyVocab(req.user?.id);
+      
+      res.json({
+        vocabulary: dailyVocab,
+        allowanceInfo: {
+          dailyLessonsRemaining: validation.dailyLessonsRemaining,
+          requiresTokens: validation.requiresTokens,
+          tokenCost: validation.tokenCost
+        },
+        message: validation.requiresTokens 
+          ? `Daily allowance exhausted. ${validation.tokenCost} tokens required for additional lessons.`
+          : `${validation.dailyLessonsRemaining} free lessons remaining today.`
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get daily vocabulary' });
+    }
+  }
+);
+
+/**
+ * POST /learning/lesson/complete - Complete lesson with token rewards
+ */
+router.post('/lesson/complete',
+  validateLessonAccess(),
+  processLessonCompletion(),
+  processLearningSpending(),
+  async (req, res) => {
+    try {
+      const { lessonId, score, answers } = req.body;
+      const rewards = (req as any).lessonRewards;
+      const validation = (req as any).lessonValidation;
+      
+      // Process lesson completion (existing logic)
+      const completion = await processLessonCompletion(req.user?.id, {
+        lessonId,
+        score,
+        answers
+      });
+      
+      res.json({
+        completion,
+        rewards: {
+          tokensEarned: rewards?.totalReward || 0,
+          breakdown: {
+            lessonReward: rewards?.lessonReward || 0,
+            streakBonus: rewards?.streakBonus || 0
+          }
+        },
+        allowanceInfo: {
+          dailyLessonsRemaining: Math.max(0, validation.dailyLessonsRemaining - 1),
+          tokenSpent: validation.requiresTokens ? validation.tokenCost : 0
+        },
+        message: rewards?.totalReward > 0 
+          ? `Lesson completed! You earned ${rewards.totalReward} YAP tokens.`
+          : 'Lesson completed!'
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to complete lesson' });
+    }
+  }
+);
+
+/**
+ * POST /learning/story-mode/unlock - Unlock story mode with tokens
+ */
+router.post('/story-mode/unlock',
+  validateLearningFeature('story_mode_unlock'),
+  processLearningSpending(),
+  async (req, res) => {
+    try {
+      const { storyId } = req.body;
+      const spending = (req as any).featureSpending;
+      
+      // Unlock story mode (existing logic)
+      const unlock = await unlockStoryMode(req.user?.id, storyId);
+      
+      res.json({
+        unlock,
+        cost: spending?.cost || 0,
+        message: `Story mode "${storyId}" unlocked! Cost: ${spending?.cost} tokens.`
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to unlock story mode' });
+    }
+  }
+);
+
+/**
+ * POST /learning/unit/skip - Skip unit with token payment
+ */
+router.post('/unit/skip',
+  validateLearningFeature('unit_skip'),
+  processLearningSpending(),
+  async (req, res) => {
+    try {
+      const { unitId } = req.body;
+      const spending = (req as any).featureSpending;
+      
+      // Process unit skip (existing logic)
+      const skip = await skipUnit(req.user?.id, unitId);
+      
+      res.json({
+        skip,
+        cost: spending?.cost || 0,
+        message: `Unit "${unitId}" skipped! Cost: ${spending?.cost} tokens.`
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to skip unit' });
+    }
+  }
+);
+
+/**
+ * POST /learning/pronunciation/detailed - Get detailed pronunciation analysis
+ */
+router.post('/pronunciation/detailed',
+  validateLearningFeature('pronunciation_detailed'),
+  processLearningSpending(),
+  async (req, res) => {
+    try {
+      const { audioData, text } = req.body;
+      const spending = (req as any).featureSpending;
+      
+      // Get detailed pronunciation analysis (existing logic)
+      const analysis = await getDetailedPronunciation(audioData, text);
+      
+      res.json({
+        analysis,
+        cost: spending?.cost || 0,
+        message: spending?.cost > 0 
+          ? `Detailed analysis complete! Cost: ${spending.cost} tokens.`
+          : 'Analysis complete!'
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to analyze pronunciation' });
+    }
+  }
+);
+
+/**
+ * GET /learning/status - Get user's learning progress and token status
+ */
+router.get('/status', async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const learningStatus = await learningTokenMiddleware.getUserLearningStatus(req.user.id);
+    
+    if (!learningStatus) {
+      return res.status(404).json({ error: 'Learning status not found' });
+    }
+
+    res.json({
+      learningProgress: learningStatus,
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get learning status' });
+  }
+});
+
+/**
+ * POST /learning/retry - Retry lesson with increasing cost
+ */
+router.post('/retry',
+  validateLearningFeature('lesson_retry'),
+  processLearningSpending(),
+  async (req, res) => {
+    try {
+      const { lessonId, retryCount } = req.body;
+      const spending = (req as any).featureSpending;
+      
+      // Process lesson retry (existing logic)
+      const retry = await retryLesson(req.user?.id, lessonId, retryCount);
+      
+      res.json({
+        retry,
+        cost: spending?.cost || 0,
+        retryCount: retryCount + 1,
+        message: `Lesson retry initiated. Cost: ${spending?.cost} tokens.`
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to retry lesson' });
+    }
+  }
+);
+
+export default router;
+
+// ========================================
+// MOCK HELPER FUNCTIONS (REPLACE WITH REAL IMPLEMENTATIONS)
+// ========================================
+
+async function getDailyVocab(userId?: string) {
+  // Mock implementation
+  return [
+    { word: 'hello', translation: 'hola', difficulty: 'beginner' },
+    { word: 'goodbye', translation: 'adiós', difficulty: 'beginner' },
+    { word: 'please', translation: 'por favor', difficulty: 'beginner' }
+  ];
+}
+
+async function processLessonCompletion(userId?: string, data?: any) {
+  // Mock implementation
+  return {
+    lessonId: data?.lessonId,
+    score: data?.score,
+    completed: true,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function unlockStoryMode(userId?: string, storyId?: string) {
+  // Mock implementation
+  return {
+    storyId,
+    unlocked: true,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function skipUnit(userId?: string, unitId?: string) {
+  // Mock implementation
+  return {
+    unitId,
+    skipped: true,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function getDetailedPronunciation(audioData?: any, text?: string) {
+  // Mock implementation
+  return {
+    overallScore: 85,
+    wordScores: [
+      { word: 'hello', score: 90, issues: [] },
+      { word: 'world', score: 80, issues: ['slight accent on "r"'] }
+    ],
+    recommendations: ['Practice rolling your Rs', 'Focus on vowel pronunciation']
+  };
+}
+
+async function retryLesson(userId?: string, lessonId?: string, retryCount?: number) {
+  // Mock implementation
+  return {
+    lessonId,
+    retryCount: retryCount + 1,
+    initiated: true,
+    timestamp: new Date().toISOString()
+  };
+}

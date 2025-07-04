@@ -17,7 +17,7 @@ spec:
       serviceAccountName: observability-sa  # IRSA for DynamoDB
       containers:
         - name: observability
-          image: observability-service
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-observability-service:20250624-152925
           ports:
             - containerPort: 8080
               name: http

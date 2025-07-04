@@ -1,0 +1,46 @@
+FROM python:3.9-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libsndfile1 \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy lightweight requirements
+COPY requirements.lightweight.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.lightweight.txt
+
+# Copy application code
+COPY . .
+
+# Generate gRPC code
+RUN python -m grpc_tools.protoc \
+    --proto_path=./proto \
+    --python_out=./proto \
+    --grpc_python_out=./proto \
+    proto/*.proto
+
+# Create __init__.py in proto directory
+RUN touch proto/__init__.py
+
+# Fix imports
+RUN sed -i 's/import alignment_pb2 as alignment__pb2/from . import alignment_pb2 as alignment__pb2/g' proto/alignment_pb2_grpc.py
+
+# Expose port
+EXPOSE 50051
+
+# Environment variables
+ENV GRPC_PORT=50051
+ENV METRICS_PORT=8000
+ENV GPU_ENABLED=False
+ENV STORAGE_ENABLED=False
+
+# Run the lightweight version
+ENTRYPOINT ["python", "main.py"]
+CMD ["--no-gpu", "--port", "50051"]

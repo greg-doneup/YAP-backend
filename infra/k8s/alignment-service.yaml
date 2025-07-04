@@ -1,20 +1,67 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: alignment-service }
+metadata:
+  name: alignment-service
+  labels:
+    app: alignment-service
 spec:
-  replicas: 2
-  selector: { matchLabels: { app: alignment-service } }
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alignment-service
   template:
-    metadata: { labels: { app: alignment-service } }
+    metadata:
+      labels:
+        app: alignment-service
     spec:
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      nodeSelector:
+        nvidia.com/gpu: "true"
       containers:
-        - name: alignment-service
-          image: alignment-service  # For local development with Skaffold
-          imagePullPolicy: IfNotPresent
-          ports: [{ containerPort: 50051, name: grpc }]
-          resources:
-            requests: { cpu: "1", memory: "2Gi" }
-            limits:   { cpu: "2", memory: "4Gi" }
+      - name: alignment-service
+        image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-alignment:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 50051
+          name: grpc
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: TORCH_HOME
+          value: "/tmp/.cache/torch"
+        - name: GPU_ENABLED
+          value: "true"
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 4Gi
+            ephemeral-storage: 20Gi
+            nvidia.com/gpu: 1
+          limits:
+            cpu: 2000m
+            memory: 8Gi
+            ephemeral-storage: 40Gi
+            nvidia.com/gpu: 1
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8000
+          initialDelaySeconds: 120
+          periodSeconds: 60
+          timeoutSeconds: 15
+          failureThreshold: 3
 ---
 apiVersion: v1
 kind: Service

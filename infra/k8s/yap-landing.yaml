@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: yap-frontend
-        image: registry.digitalocean.com/yap-cr/yap-frontend:latest
+        image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-frontend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80

@@ -11,6 +11,9 @@ librosa==0.9.2
 soundfile==0.12.1
 pydub==0.25.1
 
+# Web framework
+flask==2.3.3
+
 # Deep learning
 torch==2.0.1
 torchaudio==2.0.2
@@ -29,14 +32,14 @@ resampy==0.4.2
 # Cloud providers
 boto3==1.28.0
 azure-cognitiveservices-speech==1.25.0
-google-cloud-texttospeech==2.12.0
+google-cloud-texttospeech==2.27.0
 # Pin Google gRPC deps to reduce resolver complexity
-google-api-core==2.24.1
-grpcio-status==1.48.1
-googleapis-common-protos==1.69.2
+google-api-core==2.25.1
+grpcio-status==1.73.0
+googleapis-common-protos==1.70.0
 
 # gRPC
-grpcio==1.57.0
-grpcio-tools==1.57.0
-protobuf==3.20.3
+grpcio==1.73.0
+grpcio-tools==1.73.0
+protobuf==6.31.1
 langdetect==1.0.9  # Pin language detection to match requirements-mlops

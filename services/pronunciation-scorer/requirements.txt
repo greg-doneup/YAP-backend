@@ -5,6 +5,7 @@
 # gRPC dependencies
 grpcio>=1.50.0
 grpcio-tools>=1.50.0
+grpc-interceptor>=0.15.0  # Re-enabled for security interceptors
 protobuf>=4.21.0
 
 # Azure Pronunciation Assessment API (fallback)

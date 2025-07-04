@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: wallet-service
-          image: wallet-service
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-wallet-service:fix-exception-handlers-v1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

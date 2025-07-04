@@ -13,6 +13,7 @@ typing-extensions>=4.0.0
 # gRPC dependencies - compatible versions
 grpcio>=1.48.0,<1.51.0
 grpcio-tools>=1.48.0,<1.51.0
+grpc-interceptor>=0.15.0
 protobuf>=3.19.0,<3.21.0
 
 # AWS SDK for S3 integration

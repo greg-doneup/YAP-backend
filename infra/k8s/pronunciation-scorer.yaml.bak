@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pronunciation-scorer }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: pronunciation-scorer } }
+  template:
+    metadata: { labels: { app: pronunciation-scorer } }
+    spec:
+      containers:
+        - name: pronunciation-scorer
+          image: pronunciation-scorer  # For local development with Skaffold
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 50052, name: grpc }]
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+            limits:   { cpu: "1",    memory: "2Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: pronunciation-scorer }
+spec:
+  selector: { app: pronunciation-scorer }
+  ports:
+    - port: 50052
+      targetPort: 50052
+      name: grpc

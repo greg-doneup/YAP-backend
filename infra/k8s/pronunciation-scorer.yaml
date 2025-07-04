@@ -9,12 +9,12 @@ spec:
     spec:
       containers:
         - name: pronunciation-scorer
-          image: pronunciation-scorer  # For local development with Skaffold
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-pronunciation-scorer:20250624-144744  # Fixed grpc_interceptor dependency
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 50052, name: grpc }]
           resources:
-            requests: { cpu: "500m", memory: "1Gi" }
-            limits:   { cpu: "1",    memory: "2Gi" }
+            requests: { cpu: "150m", memory: "256Mi" }
+            limits:   { cpu: "300m", memory: "512Mi" }
 ---
 apiVersion: v1
 kind: Service

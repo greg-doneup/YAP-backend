@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: reward-service }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: reward-service } }
+  template:
+    metadata: { labels: { app: reward-service } }
+    spec:
+      containers:
+        - name: reward
+          image: reward-service
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - secretRef: { name: reward-secrets }
+            - configMapRef: { name: reward-config }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: reward-service }
+spec:
+  selector: { app: reward-service }
+  ports:
+    - port: 80
+      targetPort: 8080

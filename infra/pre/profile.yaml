@@ -34,7 +34,7 @@ spec:
       serviceAccountName: profile-sa
       containers:
         - name: profile
-          image: registry.digitalocean.com/yap-cr/profile-service:latest
+          image: registry.digitalocean.com/yap-cr/profile:passphrase-hash-removal-v1
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

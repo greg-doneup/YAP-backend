@@ -9,3 +9,5 @@ data:
   MONGO_DB_NAME: "yap"
   # Development flags
   USE_LOCAL_MONGO: "false"       # Set to use MongoDB Atlas instead of local
+  # CORS configuration
+  ALLOWED_ORIGINS: "https://perci.goyap.ai,https://app.goyap.ai,https://goyap.ai,http://localhost:8100"

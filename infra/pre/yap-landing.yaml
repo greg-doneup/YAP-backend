@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: yap-landing
-        image: registry.digitalocean.com/yap-cr/yap-landing:latest
+        image: registry.digitalocean.com/yap-cr/yap-landing:waitlist-fix-v1
         imagePullPolicy: Always
         ports:
         - containerPort: 80

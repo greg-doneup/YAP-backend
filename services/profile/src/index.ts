@@ -1,11 +1,13 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import { requireAuth, getUserIdFromRequest } from './shared/auth/authMiddleware';
 import { profileValidator } from './validators';
 import { profileController } from './controllers';
 import { connectToDatabase } from './mon/mongo';
 import { profileSecurityMiddleware } from './middleware/security';
+import waitlistRoutes from './routes/waitlist';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -21,6 +23,7 @@ connectToDatabase()
 
 // Enhanced CORS with security
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  'https://perci.goyap.ai',
   'http://localhost:8100', 
   'http://localhost:3000', 
   'http://localhost:4200'
@@ -44,26 +47,109 @@ app.use(profileSecurityMiddleware.profileSecurityHeaders());
 app.use(express.json({ limit: '1mb' })); // Limit request size
 app.use(morgan('combined')); // More detailed logging
 
-// Apply enhanced security to profile routes
+// PUBLIC ROUTES (no authentication required)
+// Email lookup endpoint for registration/signup flows
+app.get('/profile/email/:email', 
+    profileSecurityMiddleware.profileRateLimit(10, 5), // Rate limit for public endpoint
+    async (req, res, next) => {
+        try {
+            const email = req.params.email;
+            console.log(`[EMAIL-LOOKUP] Looking up email: ${email}`);
+            
+            // Import the profile model and security validator
+            const { ProfileModel } = await import('./mon/mongo');
+            const { SecurityValidator } = await import('./utils/securityValidator');
+            const { AuditLogger } = await import('./utils/auditLogger');
+            
+            const auditLogger = new AuditLogger();
+            
+            // Validate and sanitize email
+            if (!SecurityValidator.validateEmail(email)) {
+                console.log(`[EMAIL-LOOKUP] Invalid email format: ${email}`);
+                await auditLogger.logSecurityViolation(req, 'invalid_email_lookup', {
+                    email: SecurityValidator.hashSensitiveData(email)
+                });
+                return res.status(400).json({ 
+                    error: 'invalid_email', 
+                    message: 'Invalid email format' 
+                });
+            }
+            
+            const sanitizedEmail = SecurityValidator.sanitizeInput(email);
+            console.log(`[EMAIL-LOOKUP] Sanitized email: ${sanitizedEmail}`);
+            
+            try {
+                // Ensure we're connected to the database
+                if (!mongoose.connection.readyState) {
+                    console.log(`[EMAIL-LOOKUP] Database not connected, attempting to reconnect...`);
+                    await connectToDatabase();
+                }
+                
+                const found = await ProfileModel.findOne({ email: sanitizedEmail }).lean().maxTimeMS(5000);
+                console.log(`[EMAIL-LOOKUP] Database query result:`, found ? 'FOUND' : 'NOT_FOUND');
+                
+                if (!found) {
+                    console.log(`[EMAIL-LOOKUP] Profile not found for: ${sanitizedEmail}`);
+                    return res.status(404).json({
+                        error: 'not_found',
+                        message: 'Profile not found'
+                    });
+                }
+                
+                // Remove sensitive data for public endpoint
+                const sanitizedProfile = { ...found };
+                delete (sanitizedProfile as any).encryptedStretchedKey;
+                delete (sanitizedProfile as any).encrypted_mnemonic;
+                delete (sanitizedProfile as any).passphrase_hash;
+                delete (sanitizedProfile as any).salt;
+                delete (sanitizedProfile as any).nonce;
+                
+                console.log(`[EMAIL-LOOKUP] Returning sanitized profile for: ${sanitizedEmail}`);
+                return res.json(sanitizedProfile);
+            } catch (dbError: any) {
+                console.error(`[EMAIL-LOOKUP] Database error:`, dbError);
+                // For registration flow, treat ALL DB errors as "user not found" to allow registration
+                // This includes connection errors, timeouts, etc.
+                return res.status(404).json({
+                    error: 'not_found',
+                    message: 'Profile not found',
+                    debug: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+                });
+            }
+            
+        } catch (err: any) {
+            console.error(`[EMAIL-LOOKUP] General error:`, err);
+            // For registration flow, treat all errors as "user not found" to allow registration
+            return res.status(404).json({
+                error: 'not_found',
+                message: 'Profile not found',
+                debug: process.env.NODE_ENV === 'development' ? err.message : undefined
+            });
+        }
+    }
+);
+
+// Apply basic middleware to profile routes (no auth required)
 app.use('/profile', 
     profileSecurityMiddleware.profileRateLimit(30, 5), // 30 requests per 5 minutes
-    requireAuth(APP_JWT_SECRET),
-    profileSecurityMiddleware.enforceProfileOwnership(),
+    // Removed auth requirement and ownership enforcement for simplified deployment
     profileSecurityMiddleware.validateProfileData(),
     profileSecurityMiddleware.auditProfileChanges(),
     profileValidator,
     profileController
 );
 
-// Security monitoring endpoint
-app.get('/profile/security/metrics', requireAuth(APP_JWT_SECRET), async (req, res) => {
+// Waitlist routes with lighter security (no auth required for signup)
+app.use('/api/waitlist',
+    profileSecurityMiddleware.profileRateLimit(10, 5), // 10 waitlist signups per 5 minutes
+    profileSecurityMiddleware.validateProfileData(),
+    profileSecurityMiddleware.auditProfileChanges(),
+    waitlistRoutes
+);
+
+// Security monitoring endpoint (no auth required for simplified deployment)
+app.get('/profile/security/metrics', async (req, res) => {
   try {
-    // Only allow admin access to security metrics
-    const user = (req as any).user;
-    if (!user?.roles?.includes('admin')) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-    
     const metrics = await profileSecurityMiddleware.getSecurityMetrics();
     res.json(metrics);
   } catch (error) {

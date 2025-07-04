@@ -132,6 +132,17 @@ export class ProfileSecurityMiddleware {
       const requestedUserId = req.params.userId;
       const authenticatedUserId = (req as any).user?.sub;
       const isAdmin = (req as any).user?.roles?.includes('admin');
+      const isInternalService = (req as any).user?.type === 'internal';
+
+      // Skip ownership check for internal service calls
+      if (isInternalService) {
+        return next();
+      }
+
+      // Skip ownership check for routes that don't have userId parameter (like /email/:email)
+      if (!requestedUserId) {
+        return next();
+      }
 
       if (!authenticatedUserId) {
         this.logSecurityEvent('missing_user_id', this.getClientIp(req), {

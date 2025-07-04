@@ -1,41 +1,23 @@
-# ---------- 1. Builder ----------
-FROM node:20-bookworm-slim AS builder
+FROM node:18-alpine
 
-WORKDIR /app
-# First copy package files and install dependencies
-COPY package.json package-lock.json ./
-RUN npm ci
-# Then copy source code
-COPY tsconfig.json ./
-COPY src ./src
+WORKDIR /usr/src/app
 
-# ---------- 2. Production ----------
-FROM node:20-alpine AS runtime
-# Install ts-node globally BEFORE switching to non-root user
-RUN npm install -g ts-node typescript
+# Install dependencies first for better caching
+COPY package*.json ./
+RUN npm install --omit=dev
 
-# create non-root user
-RUN addgroup -S app && adduser -S app -G app
-WORKDIR /home/app
+# Install TypeScript globally for compilation
+RUN npm install -g typescript
 
-# copy deps, source & config
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY package.json ./
+# Copy source code
+COPY . .
 
-# Create data directory and set permissions
-RUN mkdir -p /home/app/src/data && \
-    chown -R app:app /home/app/src/data
+# Create the dist directory and compile TypeScript
+RUN mkdir -p dist
+RUN tsc --outDir dist --rootDir src --target es2020 --module commonjs --declaration false --strict false --esModuleInterop true --skipLibCheck true --forceConsistentCasingInFileNames false src/index.ts src/routes/auth.ts src/utils/database.ts src/utils/securityValidator.ts src/utils/auditLogger.ts src/middleware/security.ts src/middleware/requireAuth.ts
 
-ENV NODE_ENV=production \
-    PORT=8080
-
+# Expose port
 EXPOSE 8080
 
-# healthcheck for K8s readiness probes
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD \
-  wget -qO- http://localhost:${PORT}/healthz || exit 1
-
-USER app
-CMD ["npx", "ts-node", "src/index.ts"]
+# Start the application
+CMD ["node", "dist/index.js"]

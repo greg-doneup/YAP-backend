@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blockchain-progress-service
+  labels:
+    app: blockchain-progress-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: blockchain-progress-service
+  template:
+    metadata:
+      labels:
+        app: blockchain-progress-service
+    spec:
+      containers:
+        - name: blockchain-progress-service
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-blockchain-progress:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - secretRef:
+                name: blockchain-secrets  # SEI EVM keys and config
+            - secretRef:
+                name: database-cache-secrets  # Redis access and other cache config
+            - secretRef:
+                name: mongodb-secrets  # MongoDB connection details
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "8080"
+            - name: SEI_EVM_RPC_URL
+              value: "https://evm-rpc-testnet.sei-apis.com"
+            - name: CHAIN_ID
+              value: "1328"
+            - name: BATCH_INTERVAL_MINUTES
+              value: "15"
+            - name: BATCH_SIZE_LIMIT
+              value: "100"
+            - name: LEARNING_SERVICE_URL
+              value: "http://learning-service:8080"
+            - name: PROFILE_SERVICE_URL
+              value: "http://offchain-profile:8080"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blockchain-progress-service
+  labels:
+    app: blockchain-progress-service
+spec:
+  selector:
+    app: blockchain-progress-service
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: blockchain-secrets
+type: Opaque
+data:
+  # Base64 encoded values - using correct deployed contract addresses
+  YAP_TREASURY_PRIVATE_KEY: "MHhhYmQ3YTQyNDhiMjlmNjRjYThjNWJhNDBkODQwM2RhMWI3NDdiMWE1MDUxNWFmOWY5ZTE4MTY2NDc0ZDA3Nzg2"  # Treasury wallet private key (base64 encoded)
+  LEADERBOARD_CONTRACT_ADDRESS: "MHgwNWQ4NmY2NjEwMjdjNjhiNzc1ODkxZjcyM0JhNTE4MTcxOTEwOWEx"  # DailyCompletion contract: 0x05d86f661027c68b775891f723Ba5181719109a1
+  TOKEN_CONTRACT_ADDRESS: "MHhlRUY2Q2EwMWI2RUE0MjE3Qjg1Y0YzMzQ3RjA2ZDBDMTM5NDdiZWFG"  # YAPToken contract: 0xeEF6Ca01b6EA4217B85cF3347F06d0C13947beaF
+  BATCH_SIGNING_KEY: "MHgyZmUyMWNiNGU4NjFjOWE0ZWYwODViODJhM2FlMzE2NDZjMDYxNzlhMGViODg3MTc1ODJiYjE4MDM5NmE2YjNi"  # Application-level batch verification key

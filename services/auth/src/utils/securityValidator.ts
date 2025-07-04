@@ -105,17 +105,56 @@ export class SecurityValidator {
       errors.push("Valid email is required");
     }
 
-    if (!data.passphrase || data.passphrase.length < 8) {
-      errors.push("Passphrase must be at least 8 characters");
-    }
+    // NOTE: Auth service should NEVER validate raw passphrases for security
+    // All passphrase validation happens client-side before hashing
+    // The server only receives and validates passphrase_hash
 
-    if (data.passphrase && data.passphrase.length > 1000) {
-      errors.push("Passphrase too long");
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  static validateEmailOnly(data: any): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (!data.email || !this.validateEmail(data.email)) {
+      errors.push("Valid email is required");
     }
 
     return {
       isValid: errors.length === 0,
       errors
     };
+  }
+
+  static validateWaitlistRequest(data: any): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (!data.email || !this.validateEmail(data.email)) {
+      errors.push("Valid email is required");
+    }
+
+    if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
+      errors.push("Name is required");
+    }
+
+    if (!data.language_to_learn || typeof data.language_to_learn !== 'string' || data.language_to_learn.trim().length === 0) {
+      errors.push("Language preference is required");
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  static getClientIp(req: any): string {
+    return req.headers['x-forwarded-for']?.split(',')[0] ||
+           req.headers['x-real-ip'] ||
+           req.connection?.remoteAddress ||
+           req.socket?.remoteAddress ||
+           req.ip ||
+           'unknown';
   }
 }

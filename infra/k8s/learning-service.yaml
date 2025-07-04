@@ -9,11 +9,14 @@ spec:
     spec:
       containers:
         - name: learning
-          image: learning-service
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-learning-service:api-prefix-fix
           ports: [{ containerPort: 8080 }]
           envFrom:
             - secretRef: { name: profile-secrets }    # brings APP_JWT_SECRET
             - secretRef: { name: mongodb-secrets }    # brings MONGO_URI and MONGO_DB_NAME
+          env:
+            - name: ALLOWED_ORIGINS
+              value: "https://perci.goyap.ai,https://app.goyap.ai,https://goyap.ai,http://localhost:3000"
 ---
 apiVersion: v1
 kind: Service

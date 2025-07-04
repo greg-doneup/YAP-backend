@@ -3,5 +3,7 @@ uvicorn[standard]
 motor
 python-jose[cryptography]
 cryptography
-pydantic
+pydantic[email]
 python-dotenv
+mnemonic
+eth_account

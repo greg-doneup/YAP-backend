@@ -5,6 +5,8 @@ export enum SecurityEventType {
   LOGIN_FAILURE = 'login_failure',
   WALLET_AUTH_SUCCESS = 'wallet_auth_success',
   WALLET_AUTH_FAILURE = 'wallet_auth_failure',
+  AUTHENTICATION_SUCCESS = 'authentication_success',
+  AUTHENTICATION_FAILURE = 'authentication_failure',
   
   // Token events
   TOKEN_REFRESH = 'token_refresh',

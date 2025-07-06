@@ -111,6 +111,10 @@ export interface ProgressDocument extends LessonProgressSignature {
   retryCount: number;
   createdAt: Date;
   updatedAt: Date;
+  // Token award fields (for special bonuses)
+  tokenAmount?: number;
+  awardReason?: string;
+  awardDescription?: string;
 }
 
 export interface BatchDocument {
@@ -188,4 +192,21 @@ export interface LeaderboardResponse {
   userRank?: LeaderboardEntry;
   totalUsers: number;
   lastUpdate: Date;
+}
+
+// Token award types
+export interface TokenAwardRequest {
+  userId: string;
+  walletAddress: string;
+  amount: number;
+  reason: string;
+  description?: string;
+}
+
+export interface TokenAwardResponse {
+  success: boolean;
+  userId: string;
+  amount: number;
+  batchId?: string;
+  message: string;
 }

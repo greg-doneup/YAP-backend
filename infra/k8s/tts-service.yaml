@@ -13,8 +13,8 @@ spec:
     spec:
       containers:
         - name: tts-service
-          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-tts-service:20250624-115400  # Fixed HTTP feedback API config
-          imagePullPolicy: IfNotPresent
+          image: 486276252245.dkr.ecr.us-east-1.amazonaws.com/yap-tts-service:latest  # Updated with cascading fallback TTS providers
+          imagePullPolicy: Always
           ports: 
             - containerPort: 50053
               name: grpc
@@ -26,7 +26,7 @@ spec:
             - name: METRICS_PORT
               value: "8002"
             - name: TTS_PROVIDER
-              value: "azure"  # Primary provider: azure
+              value: "aws"  # Primary provider: AWS Polly (new fallback order)
             - name: USE_AZURE_TTS
               value: "true"
             - name: AZURE_SPEECH_KEY
@@ -42,6 +42,8 @@ spec:
             - name: FALLBACK_TTS_PROVIDER
               value: "aws"  # Fallback provider: aws
             - name: USE_AWS_POLLY
+              value: "true"
+            - name: USE_GOOGLE_TTS
               value: "true"
             - name: AWS_REGION
               value: "us-east-1"

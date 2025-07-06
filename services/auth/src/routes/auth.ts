@@ -1098,6 +1098,29 @@ router.post('/secure-signup', async (req, res, next) => {
       // Continue - this is not critical for signup
     }
 
+    // Award 25 tokens for waitlist users through the blockchain-progress-service
+    if (isWaitlistConversionDetected) {
+      try {
+        const tokenBonusRequest = {
+          userId,
+          walletAddress: sei_address,
+          amount: 25,
+          reason: 'waitlist_bonus',
+          description: 'Welcome bonus for joining from waitlist'
+        };
+        
+        await axios.post(`${process.env.BLOCKCHAIN_PROGRESS_SERVICE_URL || 'http://blockchain-progress-service'}/api/progress/award-tokens`, tokenBonusRequest, {
+          headers: createInternalServiceHeaders(),
+          timeout: 10000
+        });
+        
+        console.log('✅ Awarded 25 token waitlist bonus to user:', userId);
+      } catch (tokenError: any) {
+        console.warn('⚠️ Failed to award waitlist token bonus:', tokenError.message);
+        // Continue - this is not critical for signup, tokens can be awarded later
+      }
+    }
+
     // Log successful secure signup
     await auditLogger.logSecurityEvent({
       eventType: SecurityEventType.AUTHENTICATION_SUCCESS,
@@ -1124,9 +1147,10 @@ router.post('/secure-signup', async (req, res, next) => {
         evmAddress: eth_address
       },
       starting_points: isWaitlistConversionDetected ? 1000 : 0,
+      token_bonus: isWaitlistConversionDetected ? 25 : 0, // 25 tokens for waitlist users
       isWaitlistConversion: isWaitlistConversionDetected,
       message: isWaitlistConversionDetected 
-        ? 'Waitlist user converted to secure account successfully'
+        ? 'Waitlist user converted to secure account successfully. 25 token bonus awarded!'
         : 'Secure wallet account created successfully'
     });
 

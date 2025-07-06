@@ -22,9 +22,9 @@ class Config:
     S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'yap-tts-audio')
     
     # TTS Provider configuration
-    TTS_PROVIDER = os.environ.get('TTS_PROVIDER', 'azure').lower()  # mozilla, aws, azure, google
+    TTS_PROVIDER = os.environ.get('TTS_PROVIDER', 'aws').lower()  # aws, azure, google, mozilla
     USE_FALLBACK_PROVIDER = os.environ.get('USE_FALLBACK_PROVIDER', 'True').lower() in ('true', '1', 't')
-    FALLBACK_TTS_PROVIDER = os.environ.get('FALLBACK_TTS_PROVIDER', 'aws').lower()  # aws, azure, google, mozilla
+    FALLBACK_TTS_PROVIDER = os.environ.get('FALLBACK_TTS_PROVIDER', 'azure').lower()  # azure, google, mozilla
     
     # Alignment service configuration
     ALIGNMENT_SERVICE_HOST = os.environ.get('ALIGNMENT_SERVICE_HOST', 'alignment-service')
@@ -56,16 +56,16 @@ class Config:
     MOZILLA_TTS_MODEL_PATH = os.environ.get('MOZILLA_TTS_MODEL_PATH', '/app/models')
     
     # AWS Polly configuration
-    USE_AWS_POLLY = os.environ.get('USE_AWS_POLLY', 'False').lower() in ('true', '1', 't')
+    USE_AWS_POLLY = os.environ.get('USE_AWS_POLLY', 'True').lower() in ('true', '1', 't')
     
     # Azure TTS configuration
     AZURE_SPEECH_KEY = os.environ.get('AZURE_SPEECH_KEY', '')
     AZURE_SERVICE_REGION = os.environ.get('AZURE_SERVICE_REGION', 'eastus')
-    USE_AZURE_TTS = os.environ.get('USE_AZURE_TTS', 'False').lower() in ('true', '1', 't')
+    USE_AZURE_TTS = os.environ.get('USE_AZURE_TTS', 'True').lower() in ('true', '1', 't')
     
     # Google Cloud TTS configuration
     GOOGLE_APPLICATION_CREDENTIALS = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
-    USE_GOOGLE_TTS = os.environ.get('USE_GOOGLE_TTS', 'False').lower() in ('true', '1', 't')
+    USE_GOOGLE_TTS = os.environ.get('USE_GOOGLE_TTS', 'True').lower() in ('true', '1', 't')
     
     # Voice configuration
     DEFAULT_VOICES_BY_LANGUAGE = {

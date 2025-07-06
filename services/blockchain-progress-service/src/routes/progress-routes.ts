@@ -8,7 +8,9 @@ import {
   SignatureRequest, 
   ProgressResponse,
   LessonProgressSignature,
-  ProgressDocument 
+  ProgressDocument,
+  TokenAwardRequest,
+  TokenAwardResponse
 } from '../types';
 
 export const progressRoutes = Router();
@@ -253,5 +255,96 @@ progressRoutes.get('/batch-status', async (req: Request, res: Response, next: Ne
   } catch (error) {
     logger.error('Error getting batch status:', error);
     next(error);
+  }
+});
+
+/**
+ * Award tokens to a user (for special bonuses like waitlist conversion)
+ * POST /api/progress/award-tokens
+ */
+progressRoutes.post('/award-tokens', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId, walletAddress, amount, reason, description }: TokenAwardRequest = req.body;
+
+    // Validate request
+    if (!userId || !walletAddress || !amount || !reason) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: userId, walletAddress, amount, reason'
+      });
+    }
+
+    // Validate amount is positive
+    if (amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Amount must be positive'
+      });
+    }
+
+    logger.info(`Awarding ${amount} tokens to user ${userId} for reason: ${reason}`);
+
+    // Create a special progress entry for token award
+    const tokenAwardSignature: LessonProgressSignature = {
+      userId,
+      walletAddress,
+      lessonId: `token_award_${reason}_${Date.now()}`,
+      cefrLevel: 'BONUS',
+      language: 'system',
+      completionTimestamp: Math.floor(Date.now() / 1000),
+      accuracyScore: 100, // Perfect score for bonus
+      pronunciationScore: 0,
+      grammarScore: 0,
+      vocabularyMastered: [],
+      timeSpent: 0,
+      attemptsCount: 1,
+      hintsUsed: 0,
+      blockTimestamp: Math.floor(Date.now() / 1000),
+      nonce: `${userId}_${reason}_${Date.now()}`
+    };
+
+    // Store as pending progress (will be batched and submitted to blockchain)
+    const progressDocument: Omit<ProgressDocument, '_id' | 'createdAt' | 'updatedAt'> = {
+      ...tokenAwardSignature,
+      status: 'pending',
+      batchId: undefined,
+      txHash: undefined,
+      retryCount: 0,
+      // Add special fields for token awards
+      tokenAmount: amount,
+      awardReason: reason,
+      awardDescription: description
+    };
+
+    const progressId = await mongoService.storeProgress(progressDocument);
+
+    // Trigger immediate batch processing for important events like token awards
+    try {
+      const batchResult = await batchProcessor.processNow();
+      if (batchResult.success) {
+        logger.info(`Token award processed in batch: ${batchResult.batchId}`);
+      }
+    } catch (batchError) {
+      logger.warn('Failed to immediately process token award batch, will be processed in next scheduled batch:', batchError);
+    }
+
+    logger.info(`Token award queued for blockchain submission: ${progressId}`);
+
+    const response: TokenAwardResponse = {
+      success: true,
+      userId,
+      amount,
+      message: `${amount} tokens awarded for ${reason}. Will be submitted to blockchain in next batch.`
+    };
+
+    res.status(200).json(response);
+
+  } catch (error: any) {
+    logger.error('Error awarding tokens:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to award tokens',
+      message: error.message
+    });
   }
 });

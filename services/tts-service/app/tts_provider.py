@@ -1442,8 +1442,16 @@ class GoogleTTSProvider(TTSProvider):
 
 class TTSProviderFactory:
     """
-    Factory for creating TTS providers.
+    Factory for creating TTS providers with cascading fallback support.
     """
+    
+    # Define the preferred fallback order: AWS Polly → Azure Cognitive → Google → Mozilla
+    FALLBACK_ORDER = [
+        ('aws', 'USE_AWS_POLLY'),
+        ('azure', 'USE_AZURE_TTS'), 
+        ('google', 'USE_GOOGLE_TTS'),
+        ('mozilla', None)  # Mozilla doesn't have a USE_ flag, always available
+    ]
     
     @staticmethod
     def get_provider(fallback: bool = False) -> TTSProvider:
@@ -1460,46 +1468,94 @@ class TTSProviderFactory:
         if Config.USE_OFFLINE_MODE:
             logger.info("Offline mode enabled: using local Mozilla TTS provider")
             return MozillaTTSProvider()
-        # For fallback, always use AWS Polly if configured
-        if fallback and Config.USE_FALLBACK_PROVIDER and Config.FALLBACK_TTS_PROVIDER == "aws" and Config.USE_AWS_POLLY:
-            logger.info("Using AWS Polly as fallback TTS provider")
-            return AWSPollyProvider()
             
-        # Primary provider selection
+        # For fallback, use the fallback order starting from the second provider
+        if fallback and Config.USE_FALLBACK_PROVIDER:
+            return TTSProviderFactory._get_provider_from_fallback_chain(skip_first=True)
+            
+        # Primary provider selection - try configured provider first, then fallback chain
         provider_type = Config.TTS_PROVIDER.lower()
         
-        if provider_type == "aws" and Config.USE_AWS_POLLY:
-            return AWSPollyProvider()
-        elif provider_type == "azure" and Config.USE_AZURE_TTS:
-            return AzureTTSProvider()
-        elif provider_type == "google" and Config.USE_GOOGLE_TTS:
-            return GoogleTTSProvider()
-        elif provider_type == "mozilla":
-            # Try to return Mozilla TTS, but don't let it fail the whole build
-            try:
-                return MozillaTTSProvider()
-            except Exception as e:
-                logger.error(f"Failed to initialize Mozilla TTS provider: {str(e)}")
-                # Fallback to AWS or Azure if Mozilla fails
-                if Config.USE_AWS_POLLY:
-                    logger.info("Falling back to AWS Polly due to Mozilla TTS failure")
-                    return AWSPollyProvider()
-                elif Config.USE_AZURE_TTS:
-                    logger.info("Falling back to Azure TTS due to Mozilla TTS failure")
-                    return AzureTTSProvider()
-                elif Config.USE_GOOGLE_TTS:
-                    logger.info("Falling back to Google TTS due to Mozilla TTS failure")
-                    return GoogleTTSProvider()
+        # Try the configured primary provider first
+        primary_provider = TTSProviderFactory._create_provider(provider_type)
+        if primary_provider:
+            return primary_provider
+            
+        # If primary provider failed, use fallback chain
+        logger.warning(f"Primary provider '{provider_type}' failed to initialize, using fallback chain")
+        return TTSProviderFactory._get_provider_from_fallback_chain()
+    
+    @staticmethod
+    def _get_provider_from_fallback_chain(skip_first: bool = False) -> TTSProvider:
+        """
+        Get the first available provider from the fallback chain.
         
-        # Default to Azure TTS since it's configured as primary
-        if Config.USE_AZURE_TTS:
-            return AzureTTSProvider()
-        elif Config.USE_AWS_POLLY:
-            return AWSPollyProvider()
-        else:
-            # Last resort, try Mozilla but catch any errors
-            try:
+        Args:
+            skip_first: Whether to skip the first provider in the chain (for true fallback)
+            
+        Returns:
+            TTSProvider: A TTS provider instance
+            
+        Raises:
+            RuntimeError: If no provider could be initialized
+        """
+        start_index = 1 if skip_first else 0
+        
+        for provider_type, config_flag in TTSProviderFactory.FALLBACK_ORDER[start_index:]:
+            # Check if provider is enabled via configuration
+            if config_flag and not getattr(Config, config_flag, False):
+                logger.debug(f"Skipping {provider_type} provider: {config_flag} is False")
+                continue
+                
+            provider = TTSProviderFactory._create_provider(provider_type)
+            if provider:
+                logger.info(f"Successfully initialized {provider_type} provider from fallback chain")
+                return provider
+        
+        raise RuntimeError("No TTS provider could be initialized from fallback chain")
+    
+    @staticmethod
+    def _create_provider(provider_type: str) -> Optional[TTSProvider]:
+        """
+        Create a specific provider instance.
+        
+        Args:
+            provider_type: Type of provider to create ('aws', 'azure', 'google', 'mozilla')
+            
+        Returns:
+            TTSProvider: Provider instance or None if creation failed
+        """
+        try:
+            if provider_type == "aws" and Config.USE_AWS_POLLY:
+                logger.info("Initializing AWS Polly TTS provider")
+                return AWSPollyProvider()
+            elif provider_type == "azure" and Config.USE_AZURE_TTS:
+                logger.info("Initializing Azure TTS provider")
+                return AzureTTSProvider()
+            elif provider_type == "google" and Config.USE_GOOGLE_TTS:
+                logger.info("Initializing Google TTS provider")
+                return GoogleTTSProvider()
+            elif provider_type == "mozilla":
+                logger.info("Initializing Mozilla TTS provider")
                 return MozillaTTSProvider()
-            except Exception as e:
-                logger.error(f"Failed to initialize any TTS provider: {str(e)}")
-                raise RuntimeError("No TTS provider could be initialized")
+            else:
+                logger.debug(f"Provider {provider_type} not available or not enabled")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize {provider_type} TTS provider: {str(e)}")
+            return None
+    
+    @staticmethod
+    def get_available_providers() -> List[str]:
+        """
+        Get list of available and enabled providers.
+        
+        Returns:
+            List[str]: List of available provider names
+        """
+        available = []
+        for provider_type, config_flag in TTSProviderFactory.FALLBACK_ORDER:
+            if config_flag is None or getattr(Config, config_flag, False):
+                available.append(provider_type)
+        return available

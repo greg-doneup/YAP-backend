@@ -16,10 +16,6 @@ export const ROUTE_TO_FEATURE_MAP: Record<string, FeatureId> = {
   '/learning/story-mode': 'storyMode',
   '/learning/vocabulary': 'vocabularyPractice',
   
-  // AI features
-  '/ai/chat/text': 'aiTextChat',
-  '/ai/chat/voice': 'aiSpeechChat',
-  
   // Voice & Pronunciation
   '/voice/pronunciation': 'pronunciationLesson',
   
@@ -27,10 +23,6 @@ export const ROUTE_TO_FEATURE_MAP: Record<string, FeatureId> = {
   '/assessment/unit-exam': 'unitExam',
   '/assessment/skip-ahead': 'unitExamSkipAhead',
   '/assessment/adaptive-quiz': 'adaptiveReviewQuiz',
-  
-  // Social & Competition features
-  '/social/leaderboard/weekly': 'weeklyLeaderboard',
-  '/social/challenges/community': 'communityChallenge',
   
   // Event features
   '/events/cultural': 'eventPass',
@@ -45,11 +37,6 @@ export const API_ENDPOINT_TO_FEATURE_MAP: Record<string, FeatureId> = {
   'GET /api/v1/learning/story-mode/content': 'storyMode',
   'POST /api/v1/learning/vocabulary/practice': 'vocabularyPractice',
   
-  // AI API endpoints
-  'POST /api/v1/ai/chat/text/message': 'aiTextChat',
-  'POST /api/v1/ai/chat/voice/session': 'aiSpeechChat',
-  'POST /api/v1/ai/chat/text/unlimited': 'aiTextChat',
-  
   // Voice API endpoints
   'POST /api/v1/voice/pronunciation/analyze': 'pronunciationLesson',
   'POST /api/v1/voice/pronunciation/detailed': 'pronunciationLesson',
@@ -59,11 +46,6 @@ export const API_ENDPOINT_TO_FEATURE_MAP: Record<string, FeatureId> = {
   'POST /api/v1/assessment/unit-exam/stake': 'unitExam',
   'POST /api/v1/assessment/skip-ahead/exam': 'unitExamSkipAhead',
   'POST /api/v1/assessment/adaptive-quiz/generate': 'adaptiveReviewQuiz',
-  
-  // Social API endpoints
-  'POST /api/v1/social/leaderboard/join': 'weeklyLeaderboard',
-  'POST /api/v1/social/challenges/join': 'communityChallenge',
-  'POST /api/v1/social/referral/track': 'referral',
   
   // Event API endpoints
   'POST /api/v1/events/join': 'eventPass',
@@ -90,11 +72,6 @@ export const SERVICE_TO_FEATURES_MAP: Record<string, FeatureId[]> = {
     'unitExamSkipAhead',
     'adaptiveReviewQuiz',
   ],
-  'social-service': [
-    'weeklyLeaderboard',
-    'communityChallenge',
-    'referral',
-  ],
   'content-service': [
     'storyMode',
     'eventPass',
@@ -105,8 +82,6 @@ export const SERVICE_TO_FEATURES_MAP: Record<string, FeatureId[]> = {
 export const FEATURE_CATEGORIES = {
   DAILY_ALLOWANCES: [
     'dailyLessons',
-    'aiTextChat',
-    'aiSpeechChat',
     'vocabularyPractice',
   ],
   PREMIUM_FEATURES: [

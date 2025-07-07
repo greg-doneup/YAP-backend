@@ -9,6 +9,7 @@ import dynamicLessonRoutes from "./routes/dynamic-lessons";
 import dailyAllowancesRoutes from "./routes/daily-allowances";
 import tokensRoutes from "./routes/tokens";
 import healthRoutes from "./routes/health";
+import levelsRoutes from "./routes/levels";
 import { closeConnection } from "./clients/mongodb";
 import { learningSecurityMiddleware } from "./middleware/security";
 
@@ -45,6 +46,7 @@ apiRouter.use("/dynamic-lessons", learningSecurityMiddleware.enforceLearningOwne
 apiRouter.use("/daily-allowances", learningSecurityMiddleware.enforceLearningOwnership(), dailyAllowancesRoutes);
 apiRouter.use("/allowances", learningSecurityMiddleware.enforceLearningOwnership(), dailyAllowancesRoutes);
 apiRouter.use("/tokens", learningSecurityMiddleware.enforceLearningOwnership(), tokensRoutes);
+apiRouter.use("/levels", learningSecurityMiddleware.enforceLearningOwnership(), levelsRoutes);
 
 // Mount API router under /api
 app.use("/api", apiRouter);

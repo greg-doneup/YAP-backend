@@ -30,18 +30,15 @@ declare -a SERVICES=(
     "observability-service:yap-observability-service"
     "grammar-service:yap-grammar-service"
     "assessment-service:yap-assessment-service"
-    "collaboration-service:yap-collaboration-service"
     "content-service:yap-content-service"
     "notification-service:yap-notification-service"
     "profile-service:yap-profile-service-new"
-    "social-service:yap-social-service"
     "blockchain-progress-service:yap-blockchain-progress"
     "wallet-service:yap-wallet-service"
     "tts-service:yap-tts-service"
     "alignment-service:yap-alignment-service"
     "voice-score:yap-voice-score"
     "pronunciation-scorer:yap-pronunciation-scorer"
-    "ai-chat-service:yap-ai-chat-service"
 )
 
 # Build and push each service

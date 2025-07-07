@@ -16,58 +16,72 @@ import {
 import { LessonCompletion } from "../types/lesson";
 import { generateSpeech } from "../clients/tts";
 import { generateVocabAudio, generatePronunciationExample } from "../helpers/ttsHelper";
+import { learningProgressionMiddleware } from "../middleware/progression-middleware";
 
 const router = Router();
 
 /**
  * GET /daily
- * Returns the vocabulary list for the user's current lesson
+ * Returns the vocabulary list for the user's current lesson with progression validation
  */
-router.get("/", async (req, res) => {
-  try {
-    const { userId } = req.query;
+router.get("/", 
+  learningProgressionMiddleware.validateDailyLessonAccess(),
+  async (req, res) => {
+    try {
+      const { userId } = req.query;
 
-    if (!userId || typeof userId !== "string") {
-      // If no userId provided, return default vocab items
-      const dailyWords = vocab.slice(0, 5);
-      return res.json(dailyWords);
-    }
+      if (!userId || typeof userId !== "string") {
+        // If no userId provided, return default vocab items
+        const dailyWords = vocab.slice(0, 5);
+        return res.json(dailyWords);
+      }
 
-    // Get user progress to determine current lesson
-    const userProgress = await getUserProgress(userId);
-    
-    if (!userProgress) {
-      // New user or no progress - return default vocabulary
-      const dailyWords = vocab.slice(0, 5);
-      return res.json(dailyWords);
+      // Get user progress to determine current lesson
+      const userProgress = await getUserProgress(userId);
+      
+      if (!userProgress) {
+        // New user or no progress - return default vocabulary
+        const dailyWords = vocab.slice(0, 5);
+        return res.json(dailyWords);
+      }
+      
+      // Get the current lesson data
+      const lesson = userProgress.currentLessonId ? await getLessonById(userProgress.currentLessonId) : null;
+      
+      if (!lesson) {
+        // Fallback if lesson not found
+        const dailyWords = vocab.slice(0, 5);
+        return res.json(dailyWords);
+      }
+      
+      // Return the vocabulary items for this lesson with progression info
+      res.json({
+        vocabulary: lesson.new_vocabulary,
+        progressionInfo: {
+          currentLesson: userProgress.currentLessonId,
+          currentLevel: userProgress.level,
+          dailyLessonsRemaining: 5, // TODO: Get from allowance service
+          canProceed: true
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching daily words:", error);
+      res.status(500).json({ error: "Failed to load daily vocabulary" });
     }
-    
-    // Get the current lesson data
-    const lesson = userProgress.currentLessonId ? await getLessonById(userProgress.currentLessonId) : null;
-    
-    if (!lesson) {
-      // Fallback if lesson not found
-      const dailyWords = vocab.slice(0, 5);
-      return res.json(dailyWords);
-    }
-    
-    // Return the vocabulary items for this lesson
-    res.json(lesson.new_vocabulary);
-  } catch (error) {
-    console.error("Error fetching daily words:", error);
-    res.status(500).json({ error: "Failed to load daily vocabulary" });
   }
-});
+);
 
 /**
  * POST /daily/complete
- * Submit a daily lesson completion with audio
+ * Submit a daily lesson completion with audio and progression validation
  * Body: {userId, lessonId, wordId, audio, detailLevel, languageCode}
  */
-router.post("/complete", async (req, res) => {
-  try {
-    const { 
-      userId, 
+router.post("/complete", 
+  learningProgressionMiddleware.validateLessonPrerequisites(),
+  async (req, res) => {
+    try {
+      const { 
+        userId, 
       lessonId, 
       wordId, 
       audio, 

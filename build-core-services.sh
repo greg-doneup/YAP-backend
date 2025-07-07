@@ -28,7 +28,6 @@ declare -a SERVICES=(
     "reward-service:yap-reward-service"
     "observability-service:yap-observability-service"
     "grammar-service:yap-grammar-service"
-    "ai-chat-service:yap-ai-chat-service"
     "voice-score:yap-voice-score"
     "blockchain-progress-service:yap-blockchain-progress"
 )

@@ -264,39 +264,6 @@ app.use("/reward", async (req, res, next) => {
   }
 });
 
-// AI Chat service routes - forward directly  
-app.use("/api/chat", async (req, res, next) => {
-  try {
-    const chatServiceUrl = `http://ai-chat-service${req.path}`;
-    console.log(`📡 [DIRECT-ROUTE] ${req.method} ${req.originalUrl} -> ${chatServiceUrl}`);
-    
-    const response = await axios({
-      method: req.method.toLowerCase() as any,
-      url: chatServiceUrl,
-      data: req.body,
-      headers: {
-        'content-type': 'application/json',
-        'x-forwarded-for': req.ip,
-        'user-agent': req.get('user-agent') || 'gateway-service',
-        'authorization': req.headers.authorization || ''
-      },
-      timeout: 30000 // Longer timeout for AI responses
-    });
-
-    res.status(response.status).json(response.data);
-  } catch (error: any) {
-    console.error(`🚨 [DIRECT-ROUTE] Error forwarding to AI chat service:`, error.message);
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(504).json({ 
-        error: 'Service unavailable', 
-        message: 'AI Chat service is not responding' 
-      });
-    }
-  }
-});
-
 app.use("/dashboard", dashboard);
 app.use("/healthz",   health);
 

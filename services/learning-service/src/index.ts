@@ -1,20 +1,25 @@
+// Load environment variables FIRST before any imports
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import quizRoutes from "./routes/quiz";
 import dailyRoutes from "./routes/daily";
 import progressRoutes from "./routes/progress";
 import lessonRoutes from "./routes/lessons";
 import dynamicLessonRoutes from "./routes/dynamic-lessons";
+import cefrLessonRoutes from "./routes/cefr-lessons";
+import spacedRepetitionRoutes from "./routes/spaced-repetition";
 import dailyAllowancesRoutes from "./routes/daily-allowances";
 import tokensRoutes from "./routes/tokens";
 import healthRoutes from "./routes/health";
 import levelsRoutes from "./routes/levels";
 import { closeConnection } from "./clients/mongodb";
 import { learningSecurityMiddleware } from "./middleware/security";
-
-// Load environment variables
-dotenv.config();
+import { initializeCEFRLessonDB } from "./services/cefr-lesson-db";
+import { initializeSpacedRepetitionEngine } from "./services/spaced-repetition";
+import { getDb } from "./clients/db";
 
 // Export the app instance for testing
 export const app = express();
@@ -43,6 +48,8 @@ apiRouter.use("/daily", learningSecurityMiddleware.enforceLearningOwnership(), d
 apiRouter.use("/progress", learningSecurityMiddleware.enforceLearningOwnership(), progressRoutes);
 apiRouter.use("/lessons", learningSecurityMiddleware.enforceLearningOwnership(), lessonRoutes);
 apiRouter.use("/dynamic-lessons", learningSecurityMiddleware.enforceLearningOwnership(), dynamicLessonRoutes);
+apiRouter.use("/cefr", learningSecurityMiddleware.enforceLearningOwnership(), cefrLessonRoutes);
+apiRouter.use("/spaced-repetition", learningSecurityMiddleware.enforceLearningOwnership(), spacedRepetitionRoutes);
 apiRouter.use("/daily-allowances", learningSecurityMiddleware.enforceLearningOwnership(), dailyAllowancesRoutes);
 apiRouter.use("/allowances", learningSecurityMiddleware.enforceLearningOwnership(), dailyAllowancesRoutes);
 apiRouter.use("/tokens", learningSecurityMiddleware.enforceLearningOwnership(), tokensRoutes);
@@ -81,8 +88,27 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 // Only start the server if this file is run directly
 if (require.main === module) {
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, async () => {
     console.log(`Learning service running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    try {
+      // Initialize database connection
+      const db = await getDb();
+      
+      // Initialize CEFR lesson system
+      const cefrDB = initializeCEFRLessonDB(db);
+      await cefrDB.initializeCEFRSystem();
+      console.log('✅ CEFR lesson system initialized');
+      
+      // Initialize spaced repetition system
+      const spacedRepetitionEngine = initializeSpacedRepetitionEngine(db);
+      await spacedRepetitionEngine.initializeSystem();
+      console.log('✅ Spaced repetition system initialized');
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize systems:', error);
+    }
   });
   
   // Graceful shutdown

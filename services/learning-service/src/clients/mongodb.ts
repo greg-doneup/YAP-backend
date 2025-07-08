@@ -43,6 +43,11 @@ async function connect() {
   return db;
 }
 
+// Export the database instance for use by other services
+export async function getDb() {
+  return await connect();
+}
+
 // Lessons collection operations
 export async function getLessonById(lessonId: string): Promise<Lesson | null> {
   const db = await connect();

@@ -10,5 +10,6 @@ export {
   getLessonCompletions,
   createLessonCompletion,
   getCompletionsByDate,
+  getDb,
   closeConnection
 } from './mongodb';

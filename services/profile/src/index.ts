@@ -23,7 +23,7 @@ connectToDatabase()
 
 // Enhanced CORS with security
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-  'https://perci.goyap.ai',
+  'https://delta-sandbox-7k3m.goyap.ai',
   'http://localhost:8100', 
   'http://localhost:3000', 
   'http://localhost:4200'

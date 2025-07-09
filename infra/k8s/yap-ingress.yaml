@@ -9,15 +9,140 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     # Security settings
     alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-2-2017-01
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # SSL Certificate ARNs - WILL BE ADDED AFTER CERTIFICATES ARE ISSUED
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID_FOR_TESTING,arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID_FOR_PRODUCTION
     # Backend settings
     alb.ingress.kubernetes.io/backend-protocol: HTTP
     alb.ingress.kubernetes.io/target-group-attributes: stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=3600
+    # Health check configuration
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
+    # Load balancer attributes
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+    # Tags for cost allocation
+    alb.ingress.kubernetes.io/tags: Environment=multi,Project=YAP,ManagedBy=kubernetes
 spec:
   ingressClassName: alb
   rules:
-    - host: perci.goyap.ai
+    # Production Environment - app.goyap.ai
+    - host: app.goyap.ai
+      http:
+        paths:
+          # More specific API paths first
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+                  
+          # Profile Service
+          - path: /api/profile
+            pathType: Prefix
+            backend:
+              service:
+                name: profile-service
+                port:
+                  number: 80
+                  
+          # Offchain Profile
+          - path: /api/offchain
+            pathType: Prefix
+            backend:
+              service:
+                name: offchain-profile
+                port:
+                  number: 80
+                  
+          # Learning Service
+          - path: /api/learning
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-service
+                port:
+                  number: 80
+                  
+          # Daily Allowances (routed to Learning Service)
+          - path: /api/daily-allowances
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-service
+                port:
+                  number: 80
+                  
+          # Allowances (routed to Learning Service)
+          - path: /api/allowances
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-service
+                port:
+                  number: 80
+                  
+          # Tokens (routed to Learning Service)
+          - path: /api/tokens
+            pathType: Prefix
+            backend:
+              service:
+                name: learning-service
+                port:
+                  number: 80
+                  
+          # AI Chat Service (with WebSocket support)
+          - path: /api/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-chat-service
+                port:
+                  number: 80
+                  
+          # Wallet Service
+          - path: /api/wallet
+            pathType: Prefix
+            backend:
+              service:
+                name: wallet-service
+                port:
+                  number: 8000
+                  
+          # Reward Service
+          - path: /api/reward
+            pathType: Prefix
+            backend:
+              service:
+                name: reward-service
+                port:
+                  number: 80
+                  
+          # Grammar Service
+          - path: /api/grammar
+            pathType: Prefix
+            backend:
+              service:
+                name: grammar-service
+                port:
+                  number: 80
+                  
+          # serve the YAP-frontend (app without waitlist) at the root path - MUST BE LAST
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yap-frontend-service
+                port:
+                  number: 80
+
+    # Testing Environment - secure non-guessable subdomain
+    - host: delta-sandbox-7k3m.goyap.ai
       http:
         paths:
           # More specific API paths first

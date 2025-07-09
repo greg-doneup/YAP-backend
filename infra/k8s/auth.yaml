@@ -22,7 +22,7 @@ spec:
                 name: mongodb-secrets
           env:
             - name: ALLOWED_ORIGINS
-              value: "https://perci.goyap.ai,https://app.goyap.ai,https://goyap.ai,http://localhost:8100"
+              value: "https://delta-sandbox-7k3m.goyap.ai,https://app.goyap.ai,https://goyap.ai,http://localhost:8100"
           readinessProbe:
             httpGet:
               path: /healthz

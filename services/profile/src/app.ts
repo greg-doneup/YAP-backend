@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 8080;
 
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-  'https://perci.goyap.ai',
+  'https://delta-sandbox-7k3m.goyap.ai',
   'https://app.goyap.ai',
   'https://goyap.ai',
   'http://localhost:8100'

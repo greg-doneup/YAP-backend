@@ -34,7 +34,7 @@ app.use(learningSecurityMiddleware.auditLearningOperations());
 // Standard middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://perci.goyap.ai', 'http://localhost:3000'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://delta-sandbox-7k3m.goyap.ai', 'http://localhost:3000'],
   credentials: true,
   optionsSuccessStatus: 200
 }));

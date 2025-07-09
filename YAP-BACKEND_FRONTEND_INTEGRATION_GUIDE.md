@@ -11,8 +11,9 @@
 8. [Progression System Implementation](#progression-system-implementation)
 9. [Pronunciation Assessment Integration](#pronunciation-assessment-integration)
 10. [Error Handling & Best Practices](#error-handling--best-practices)
-11. [Development & Testing](#development--testing)
-12. [Production Deployment](#production-deployment)
+11. [Testing Environments & Endpoints](#testing-environments--endpoints)
+12. [Development & Testing](#development--testing)
+13. [Production Deployment](#production-deployment)
 
 ---
 
@@ -1418,125 +1419,258 @@ This integration provides:
 
 ---
 
-## Production Deployment Status (Latest)
+## Testing Environments & Endpoints
 
-### ✅ Successfully Deployed Services
+### 🌐 Available Testing Domains
 
-**Core Learning Services:**
-- **learning-service** (2/2 pods) - ✅ **CEFR + Spaced Repetition Ready**
-  - Endpoint: `http://learning-service:80`
-  - Features: 640 CEFR lessons, SM-2 spaced repetition, progression tracking
-  - New APIs: `/api/cefr/*`, `/api/spaced-repetition/*`
+The YAP backend provides multiple environments for frontend development and testing:
 
-- **auth-service** (1/1 pod) - ✅ Secure Authentication
-  - Endpoint: `http://auth-service:80`
-  - Features: JWT tokens, secure wallet auth, zero-passphrase exposure
+#### **Production Environment**
+- **Domain**: `https://app.goyap.ai`
+- **Purpose**: Live production environment
+- **SSL**: ✅ Valid SSL certificates
+- **Use Case**: Final testing before release, production debugging
 
-**AI & Assessment Services:**
-- **assessment-service** (2/2 pods) - ✅ Learning Assessment
-- **pronunciation-scorer** (2/2 pods) - ✅ Speech Evaluation  
-- **voice-score** (2/2 pods) - ✅ Advanced Voice Analysis
-- **tts-service** (2/2 pods) - ✅ Text-to-Speech
+#### **Testing Environment**
+- **Domain**: `https://delta-sandbox-7k3m.goyap.ai`
+- **Purpose**: Secure testing environment (non-guessable subdomain)
+- **SSL**: ✅ Valid SSL certificates
+- **Use Case**: Feature testing, integration testing, safe experimentation
 
-**Backend Services:**
-- **blockchain-progress-service** (2/2 pods) - ✅ Progress Tracking
-- **content-service** (2/2 pods) - ✅ Content Management
-- **notification-service** (2/2 pods) - ✅ User Notifications
-- **redis** (1/1 pod) - ✅ Caching & Sessions
+#### **Local Development**
+- **Domain**: `http://localhost:3000` (typical frontend dev server)
+- **Backend**: Connect to testing environment or local backend
+- **CORS**: Pre-configured for localhost development
 
-### 🔄 Partially Deployed (Image Issues)
-- gateway-service (ErrImagePull) - Missing ECR image
-- grammar-service (ErrImagePull) - Missing ECR image  
-- wallet-service (ImagePullBackOff) - Missing ECR image
-- profile-service (ConfigError) - Configuration issue
-- reward-service (ConfigError) - Configuration issue
+### 🚀 Quick Testing Setup
 
-### 🌐 Service Endpoints Summary
-
-| Service | Internal Endpoint | Port | Status | Features |
-|---------|------------------|------|---------|----------|
-| **Learning Service** | `learning-service:80` | 80 | ✅ Running | **CEFR Lessons, Spaced Repetition** |
-| **Auth Service** | `auth-service:80` | 80 | ✅ Running | **Secure Authentication** |
-| **Assessment Service** | `assessment-service:80` | 80 | ✅ Running | Learning Assessment |
-| **Pronunciation Scorer** | `pronunciation-scorer:50052` | 50052 | ✅ Running | Speech Evaluation |
-| **Voice Score** | `voice-score:50051` | 50051 | ✅ Running | Voice Analysis |
-| **TTS Service** | `tts-service:50053` | 50053 | ✅ Running | Text-to-Speech |
-| **Content Service** | `content-service:80` | 80 | ✅ Running | Content Management |
-| **Notification Service** | `notification-service:80` | 80 | ✅ Running | User Notifications |
-| **Blockchain Progress** | `blockchain-progress-service:80` | 80 | ✅ Running | Progress Tracking |
-| **Redis Cache** | `redis-service:6379` | 6379 | ✅ Running | Caching & Sessions |
-
-### 🎯 Frontend Access Points
-
-**Primary Learning APIs:**
 ```typescript
-const PRODUCTION_ENDPOINTS = {
-  // Core learning functionality
-  LEARNING_BASE: 'http://learning-service:80/api',
-  CEFR_LESSONS: 'http://learning-service:80/api/cefr',
-  SPACED_REPETITION: 'http://learning-service:80/api/spaced-repetition',
+// Frontend environment configuration
+const API_CONFIG = {
+  // Production
+  production: {
+    baseURL: 'https://app.goyap.ai',
+    timeout: 10000,
+    retries: 3
+  },
   
-  // Authentication
-  AUTH: 'http://auth-service:80',
+  // Testing/Staging
+  testing: {
+    baseURL: 'https://delta-sandbox-7k3m.goyap.ai',
+    timeout: 15000,
+    retries: 2
+  },
   
-  // Assessment and voice
-  ASSESSMENT: 'http://assessment-service:80',
-  PRONUNCIATION: 'http://pronunciation-scorer:50052',
-  VOICE_SCORE: 'http://voice-score:50051',
-  TTS: 'http://tts-service:50053',
-  
-  // Supporting services
-  CONTENT: 'http://content-service:80',
-  NOTIFICATIONS: 'http://notification-service:80',
-  BLOCKCHAIN_PROGRESS: 'http://blockchain-progress-service:80'
+  // Local development
+  development: {
+    baseURL: 'https://delta-sandbox-7k3m.goyap.ai', // Use testing backend
+    timeout: 20000,
+    retries: 1
+  }
+};
+
+// Auto-detect environment
+const getCurrentConfig = () => {
+  if (process.env.NODE_ENV === 'production') return API_CONFIG.production;
+  if (process.env.NODE_ENV === 'development') return API_CONFIG.development;
+  return API_CONFIG.testing;
 };
 ```
 
-### 🧪 Verified Functionality
+### 🧪 API Endpoint Testing
 
-**✅ Health Checks Passed:**
-- Learning Service: `/health` endpoint responds
-- Auth Service: `/healthz` endpoint responds
-- CEFR Endpoints: `/api/cefr/lessons/1` returns 200
-- Spaced Repetition: `/api/spaced-repetition/statistics` (requires auth)
-
-**✅ Database Connections:**
-- MongoDB Atlas: Connected successfully
-- CEFR system: Initialized with lesson data
-- Spaced repetition: Initialized and ready
-
-**✅ New Features Available:**
-- **640 CEFR Lessons**: Complete A1-A2 curriculum (lessons 1-640)
-- **SM-2 Spaced Repetition**: Intelligent vocabulary review scheduling
-- **Automatic Integration**: Lesson completion → spaced repetition queue
-- **Progress Analytics**: Detailed skill-level tracking
-- **Adaptive Learning**: Performance-based recommendations
-
-### 🚀 Deployment Commands Used
+#### **Health Check Endpoints**
+Test basic connectivity with these endpoints:
 
 ```bash
-# Deployed all services with:
-cd /Users/gregbrown/github/YAP/YAP-backend
-./deploy-all-services.sh
+# Production health check
+curl -I https://app.goyap.ai/api/auth/healthz
 
-# Key deployment steps:
-# 1. All secrets deployed (MongoDB, Auth, AI services)
-# 2. Core services deployed with latest ECR images
-# 3. AI services deployed (TTS, Voice, Pronunciation)
-# 4. Learning service updated with CEFR + Spaced Repetition
+# Testing environment health check
+curl -I https://delta-sandbox-7k3m.goyap.ai/api/auth/healthz
+
+# Learning service health
+curl -I https://app.goyap.ai/api/learning/health
 ```
 
-### 📊 Current Cluster Status
+#### **Authentication Testing**
+```javascript
+// Test authentication endpoints
+const testAuth = async () => {
+  const baseURL = getCurrentConfig().baseURL;
+  
+  // Test signup endpoint
+  const signupResponse = await fetch(`${baseURL}/api/auth/secure-signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: 'test@example.com',
+      name: 'Test User',
+      // ... other required fields
+    })
+  });
+  
+  console.log('Signup test:', signupResponse.status);
+  
+  // Test login endpoint
+  const loginResponse = await fetch(`${baseURL}/api/auth/wallet/auth`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: 'test@example.com',
+      authProof: 'generated_proof'
+    })
+  });
+  
+  console.log('Login test:', loginResponse.status);
+};
+```
 
-**EKS Cluster:** `yap-backend-cluster` (us-east-1)
-**Namespace:** `default`
-**Running Pods:** 17/31 successfully running
-**Available Services:** 19 internal services configured
+#### **Learning API Testing**
+```javascript
+// Test CEFR lesson system
+const testCEFRAPI = async (authToken) => {
+  const baseURL = getCurrentConfig().baseURL;
+  const headers = {
+    'Authorization': `Bearer ${authToken}`,
+    'Content-Type': 'application/json'
+  };
+  
+  // Test lesson retrieval
+  const lessonResponse = await fetch(`${baseURL}/api/learning/cefr/lessons/1`, {
+    headers
+  });
+  console.log('CEFR Lesson 1:', lessonResponse.status);
+  
+  // Test user progress
+  const progressResponse = await fetch(`${baseURL}/api/learning/cefr/progress/user123`, {
+    headers
+  });
+  console.log('User progress:', progressResponse.status);
+  
+  // Test spaced repetition
+  const reviewResponse = await fetch(`${baseURL}/api/learning/spaced-repetition/daily-queue`, {
+    headers
+  });
+  console.log('Review queue:', reviewResponse.status);
+};
+```
 
-**Resource Utilization:**
-- Nodes: 6 EC2 instances ready
-- Load Balancer: AWS ALB Controller active
-- Autoscaling: Cluster autoscaler running
-- Storage: EBS CSI driver ready
+### 🔧 Development Workflow
+
+#### **Recommended Testing Flow**
+1. **Local Development**: Develop against testing environment
+2. **Feature Testing**: Test on testing environment
+3. **Integration Testing**: Test on testing environment with full flow
+4. **Pre-production**: Final testing on production environment
+5. **Production**: Deploy to production
+
+#### **CORS Configuration**
+Both environments support these origins:
+- `https://app.goyap.ai` (production)
+- `https://delta-sandbox-7k3m.goyap.ai` (testing)
+- `http://localhost:3000` (local development)
+- `http://localhost:8100` (Ionic dev server)
+- `http://localhost:5173` (Vite dev server)
+
+### 📊 Testing Checklist
+
+Before deploying to production, verify:
+
+#### **Authentication Flow**
+- [ ] User registration works
+- [ ] User login works
+- [ ] Token refresh works
+- [ ] Secure logout works
+- [ ] Passphrase handling is client-side only
+
+#### **Learning System**
+- [ ] CEFR lessons load correctly (test lesson 1)
+- [ ] Lesson progression works
+- [ ] Spaced repetition queue loads
+- [ ] Review submission works
+- [ ] Progress tracking updates
+
+#### **Voice/Pronunciation**
+- [ ] Audio recording works
+- [ ] Pronunciation assessment returns scores
+- [ ] TTS audio playback works
+- [ ] Detailed feedback displays correctly
+
+#### **Error Handling**
+- [ ] Network errors handled gracefully
+- [ ] Authentication errors redirect to login
+- [ ] API errors display user-friendly messages
+- [ ] Offline state handled appropriately
+
+### 🐛 Common Testing Issues
+
+#### **CORS Errors**
+```javascript
+// If you get CORS errors, check:
+// 1. Are you using the correct domain?
+// 2. Is your local server running on an allowed port?
+// 3. Are you sending the correct headers?
+
+// Example fix:
+const corsHeaders = {
+  'Origin': 'http://localhost:3000',
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${token}`
+};
+```
+
+#### **SSL Certificate Issues**
+```bash
+# If SSL certificates fail (unlikely):
+# 1. Check domain spelling
+# 2. Verify certificates are valid
+# 3. Try HTTP endpoints temporarily (not recommended)
+
+# Check certificate validity:
+openssl s_client -connect app.goyap.ai:443 -servername app.goyap.ai
+```
+
+#### **Authentication Token Issues**
+```javascript
+// Token refresh handling:
+const apiCall = async (url, options = {}) => {
+  let response = await fetch(url, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      ...options.headers
+    }
+  });
+  
+  // Handle token expiration
+  if (response.status === 401) {
+    await refreshToken();
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${newAccessToken}`,
+        ...options.headers
+      }
+    });
+  }
+  
+  return response;
+};
+```
+
+### 📞 Support & Resources
+
+#### **Documentation**
+- **API Reference**: See [API Endpoints Reference](#api-endpoints-reference) section
+- **Authentication**: See [Authentication & Security](#authentication--security) section
+- **DNS Configuration**: `/docs/dns-configuration-guide.md`
+- **SSL Setup**: `/docs/ingress-dns-ssl-setup-guide.md`
+
+#### **Getting Help**
+- **Backend Issues**: Check service logs and health endpoints
+- **Frontend Issues**: Verify CORS and authentication setup
+- **Network Issues**: Test with curl commands first
+- **SSL Issues**: Check certificate validity and domain configuration
 
 ---

@@ -26,7 +26,7 @@ app.use(express.json({ limit: '10mb' })); // Limit request size for security
 // Enhanced CORS with security considerations
 app.use((req, res, next) => {
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-    'https://perci.goyap.ai',
+    'https://delta-sandbox-7k3m.goyap.ai',
     'http://localhost:8100', 
     'http://localhost:3000', 
     'http://localhost:4200'

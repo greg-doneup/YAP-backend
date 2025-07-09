@@ -16,7 +16,7 @@ spec:
             - secretRef: { name: mongodb-secrets }    # brings MONGO_URI and MONGO_DB_NAME
           env:
             - name: ALLOWED_ORIGINS
-              value: "https://perci.goyap.ai,https://app.goyap.ai,https://goyap.ai,http://localhost:3000"
+              value: "https://delta-sandbox-7k3m.goyap.ai,https://app.goyap.ai,https://goyap.ai,http://localhost:3000"
 ---
 apiVersion: v1
 kind: Service

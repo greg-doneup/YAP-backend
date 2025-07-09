@@ -54,7 +54,7 @@ spec:
   ingressClassName: alb
   rules:
     # Main application domain
-    - host: perci.goyap.ai
+    - host: delta-sandbox-7k3m.goyap.ai
       http:
         paths:
           # Frontend application
@@ -215,7 +215,7 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-    - host: staging.perci.goyap.ai
+    - host: staging.delta-sandbox-7k3m.goyap.ai
       http:
         paths:
           - path: /

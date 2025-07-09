@@ -6,7 +6,7 @@
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-232F3E?logo=amazon-aws&logoColor=white)
 
-YAP (Yet Another Polyglot) is a next-generation language learning platform that combines AI-powered pronunciation assessment, blockchain-based progress tracking, and scientifically-proven spaced repetition algorithms to deliver personalized language learning experiences.
+YAP is a next-generation language learning platform that combines AI-powered pronunciation assessment, blockchain-based progress tracking, and scientifically-proven spaced repetition algorithms to deliver personalized language learning experiences.
 
 ## 🎯 Project Overview
 

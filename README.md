@@ -382,8 +382,8 @@ YAP Backend is licensed under the [MIT License](./LICENSE). See the LICENSE file
 - **Documentation**: Check the `/docs` directory for detailed guides
 
 ### Contact
-- **Email**: support@yap-technologies.com
-- **Website**: https://yap-technologies.com
+- **Email**: support@goyap.ai
+- **Website**: https://goyap.ai
 - **GitHub**: https://github.com/YAP-Technologies-Inc
 
 ---

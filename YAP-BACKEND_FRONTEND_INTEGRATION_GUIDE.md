@@ -1483,47 +1483,163 @@ const getCurrentConfig = () => {
 Test basic connectivity with these endpoints:
 
 ```bash
-# Production health check
-curl -I https://app.goyap.ai/api/auth/healthz
+# Production health check (HTTP only until SSL certificates are validated)
+curl -I http://app.goyap.ai/api/auth/healthz
 
-# Testing environment health check
-curl -I https://delta-sandbox-7k3m.goyap.ai/api/auth/healthz
+# Testing environment health check (HTTP only until SSL certificates are validated)
+curl -I http://delta-sandbox-7k3m.goyap.ai/api/auth/healthz
 
 # Learning service health
-curl -I https://app.goyap.ai/api/learning/health
+curl -I http://app.goyap.ai/api/learning/health
+curl -I http://delta-sandbox-7k3m.goyap.ai/api/learning/health
 ```
 
-#### **Authentication Testing**
-```javascript
-// Test authentication endpoints
-const testAuth = async () => {
-  const baseURL = getCurrentConfig().baseURL;
-  
-  // Test signup endpoint
-  const signupResponse = await fetch(`${baseURL}/api/auth/secure-signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: 'test@example.com',
-      name: 'Test User',
-      // ... other required fields
-    })
-  });
-  
-  console.log('Signup test:', signupResponse.status);
-  
-  // Test login endpoint
-  const loginResponse = await fetch(`${baseURL}/api/auth/wallet/auth`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: 'test@example.com',
-      authProof: 'generated_proof'
-    })
-  });
-  
-  console.log('Login test:', loginResponse.status);
-};
+> **Note:** Currently using HTTP endpoints while SSL certificates are being validated. Once SSL certificates are active, use HTTPS endpoints.
+
+#### **JWT Authentication Testing**
+
+**Step 1: Test User Registration (Secure Signup)**
+
+```bash
+# Test user registration - this will create a new user account
+curl -X POST http://delta-sandbox-7k3m.goyap.ai/api/auth/secure-signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "name": "Test User",
+    "language_to_learn": "spanish",
+    "native_language": "english",
+    "encryptedStretchedKey": "mock_encrypted_key",
+    "encryptionSalt": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],
+    "stretchedKeyNonce": [1,2,3,4,5,6,7,8,9,10,11,12],
+    "encryptedMnemonic": "mock_encrypted_mnemonic",
+    "mnemonicSalt": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],
+    "mnemonicNonce": [1,2,3,4,5,6,7,8,9,10,11,12],
+    "sei_address": "sei1mock_address",
+    "sei_public_key": "mock_sei_public_key",
+    "eth_address": "0xmock_eth_address",
+    "eth_public_key": "mock_eth_public_key"
+  }'
+```
+
+**Step 2: Test User Login (Wallet Authentication)**
+
+```bash
+# Test user login - this will return JWT tokens
+curl -X POST http://delta-sandbox-7k3m.goyap.ai/api/auth/wallet/auth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "authProof": "mock_auth_proof"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Authentication successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user_id_here",
+    "email": "test@example.com",
+    "name": "Test User"
+  }
+}
+```
+
+**Step 3: Test Protected Endpoints with JWT**
+
+```bash
+# Save the JWT token from login response
+export JWT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Test protected profile endpoint
+curl -X GET http://delta-sandbox-7k3m.goyap.ai/api/profile/USER_ID \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# Test protected learning endpoint
+curl -X GET http://delta-sandbox-7k3m.goyap.ai/api/learning/api/levels/status \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# Test CEFR lesson endpoint
+curl -X GET http://delta-sandbox-7k3m.goyap.ai/api/learning/api/cefr/lessons/1 \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+**Step 4: Test Token Refresh**
+
+```bash
+# Save the refresh token from login response
+export REFRESH_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Refresh the access token
+curl -X POST http://delta-sandbox-7k3m.goyap.ai/api/auth/refresh \
+  -H "Authorization: Bearer $REFRESH_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+**Complete Authentication Flow Example:**
+
+```bash
+#!/bin/bash
+
+# 1. Register a new user
+echo "🔐 Registering new user..."
+SIGNUP_RESPONSE=$(curl -s -X POST http://delta-sandbox-7k3m.goyap.ai/api/auth/secure-signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test_'$(date +%s)'@example.com",
+    "name": "Test User",
+    "language_to_learn": "spanish",
+    "native_language": "english",
+    "encryptedStretchedKey": "mock_encrypted_key",
+    "encryptionSalt": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],
+    "stretchedKeyNonce": [1,2,3,4,5,6,7,8,9,10,11,12],
+    "encryptedMnemonic": "mock_encrypted_mnemonic",
+    "mnemonicSalt": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],
+    "mnemonicNonce": [1,2,3,4,5,6,7,8,9,10,11,12],
+    "sei_address": "sei1mock_address",
+    "sei_public_key": "mock_sei_public_key",
+    "eth_address": "0xmock_eth_address",
+    "eth_public_key": "mock_eth_public_key"
+  }')
+
+echo "Signup response: $SIGNUP_RESPONSE"
+
+# Extract JWT token from signup response
+JWT_TOKEN=$(echo $SIGNUP_RESPONSE | jq -r '.token')
+USER_ID=$(echo $SIGNUP_RESPONSE | jq -r '.user.id')
+
+echo "🎟️ JWT Token: $JWT_TOKEN"
+echo "👤 User ID: $USER_ID"
+
+# 2. Test protected endpoints
+echo "🔍 Testing protected endpoints..."
+
+# Test profile endpoint
+echo "📋 Testing profile endpoint..."
+curl -s -X GET http://delta-sandbox-7k3m.goyap.ai/api/profile/$USER_ID \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" | jq '.'
+
+# Test learning status
+echo "📚 Testing learning status..."
+curl -s -X GET http://delta-sandbox-7k3m.goyap.ai/api/learning/api/levels/status \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" | jq '.'
+
+# Test CEFR lesson
+echo "🎓 Testing CEFR lesson..."
+curl -s -X GET http://delta-sandbox-7k3m.goyap.ai/api/learning/api/cefr/lessons/1 \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" | jq '.'
+
+echo "✅ Authentication flow test complete!"
 ```
 
 #### **Learning API Testing**
